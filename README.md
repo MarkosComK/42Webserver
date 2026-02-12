@@ -67,6 +67,9 @@ webserv/
 
 ### Why this structure?
 
+Sup fellas, msantos here. I've made a structure in which we can use `#include <webserv.hpp>`. So, instead of this spaguetti that people do having a lot of includes split amongs .cpp files we can use a single `#include <webserv.hpp>` over the whole project and whenever a dependency (new .hpp) file is missing, we just need to add to `webserv.hpp` and this dependency will be available over the whole project. Let's go!
+
+In sum:
 - **includes/** — central place for all headers → easy to `#include "Request.hpp"` from anywhere
 - **srcs/** subfolders — clear separation of concerns:
   - `server/` → connection & event loop (Person A)
@@ -78,40 +81,4 @@ webserv/
 
 ### Makefile
 
-```makefile
-NAME = webserv
-
-SRCS_DIR = srcs
-OBJS_DIR = objs
-
-INCLUDES = -I includes
-
-SRCS = main.cpp \
-       $(wildcard $(SRCS_DIR)/server/*.cpp) \
-       $(wildcard $(SRCS_DIR)/http/*.cpp) \
-       $(wildcard $(SRCS_DIR)/response/*.cpp) \
-       $(wildcard $(SRCS_DIR)/utils/*.cpp)
-
-OBJS = $$   (SRCS:   $$(SRCS_DIR)/%.cpp=$(OBJS_DIR)/%.o)
-
-CXX = c++
-CXXFLAGS = -Wall -Wextra -Werror -std=c++98
-
-all: $(NAME)
-
-$(NAME): $(OBJS)
-	$(CXX) $(CXXFLAGS) $(OBJS) -o $(NAME)
-
-$(OBJS_DIR)/%.o: $(SRCS_DIR)/%.cpp
-	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
-
-clean:
-	rm -rf $(OBJS_DIR)
-
-fclean: clean
-	rm -f $(NAME)
-
-re: fclean all
-
-.PHONY: all clean fclean re
+The makefile is based on the rule above. At the beginning we can include wildcards to avoid manually typing every new .cpp/.hpp file to it. We worry about coding which is what matters more now.
