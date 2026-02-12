@@ -26,8 +26,8 @@ The server aims to be RFC 1945 compliant where required, while remaining simple 
 | Intra         | GitHub username   | Main responsibility                  | Contact / Discord |
 |-------------|-------------------|--------------------------------------|-------------------|
 | carlos-j      | @podefteza| Sockets, event loop, Client handling | todo#1234      |
-| msantos     | @MarkosComK       | Request parsing, Config parsing      | todo#5678       |
-| pemirand      | @pedroraposoalves| Response building, file & error serving | todo#9012   |
+| msantos     | @MarkosComK       | Response building, file & error serving | todo#5678       |
+| pemirand      | @pedroraposoalves| Request parsing, Config parsing | todo#9012   |
 
 ## Folder Structure
 
