@@ -1,0 +1,80 @@
+#gitignore llm made
+# -----------------------
+#  Compiled objects & binaries
+# -----------------------
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+webserv                # your executable name (from Makefile)
+a.out                  # default name if you compile manually
+
+# -----------------------
+#  Build & temp directories
+# -----------------------
+build/
+obj/
+objs/
+bin/
+*.dSYM/                # macOS debug symbols
+.deps/                 # sometimes created by make -MD
+*.swp
+*~
+*.bak
+*.tmp
+
+# -----------------------
+#  Logs & runtime files
+# -----------------------
+*.log
+logs/
+access.log
+error.log
+*.pid
+
+# -----------------------
+#  macOS / Linux system files
+# -----------------------
+.DS_Store
+.AppleDouble
+Thumbs.db
+ehthumbs.db
+.desktop
+.Trashes
+.fseventsd
+._*
+
+# -----------------------
+#  Editor / IDE files (common ones)
+# -----------------------
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+tags
+cscope.*
+*.viminfo
+*.swp
+
+# -----------------------
+#  Temporary test files (you can remove lines if you want to commit them)
+# -----------------------
+test/
+tests/
+*.test
+*.out
+*.html.tmp
+upload_test_*
+
+# -----------------------
+#  Keep these (do NOT ignore)
+# !Makefile
+# !*.cpp
+# !*.hpp
+# !*.h
+# !*.conf
+# !www/
+# !config/
+# !README.md
