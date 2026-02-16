@@ -5,27 +5,36 @@
 #include <string>
 #include <vector>
 
-/*Define HTTP Request Class
-Description: Create the class that will hold the parsed request data.
-Attributes:
-_method (GET, POST, DELETE).
-_path (URI).
-_version (HTTP/1.1 or 1.0).
-_headers (std::map<string, string>).
-_body (std::vector or string).*/
-
 class Request {
   private:
 	std::string _method;
 	std::string _path;
+	std::string _query;
 	std::string _version;
 	std::map<std::string, std::string> _headers;
 	std::string _body;
 	bool valid;
 	int errorCode;
+	bool parseRequestLine(const std::string &raw);
 
   public:
 	Request(const std::string &raw);
+	bool parseMethod();
+	bool parsePath();
+	bool parseVersion();
+	bool parseHeaders(const std::string &raw);
+	bool parseBody(const std::string &raw);
+
+	std::string getMethod() const;
+	std::string getPath() const;
+	std::string getQuery() const;
+	std::string getVersion() const;
+	std::map<std::string, std::string> getHeaders() const;
+	std::string getBody() const;
+	bool isValid() const;
+	int getErrorCode() const;
 };
+
+void testRequestParsing(); // delete later...
 
 #endif
