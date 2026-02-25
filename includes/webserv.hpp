@@ -20,9 +20,10 @@
 #define STATUS502 "502 Bad Gateway"
 #define STATUS503 "503 Service Unavailable"
 
-#include <HttpStatus.hpp>
-#include <Request.hpp>
-#include <Utils.hpp>
+#include "Config.hpp"
+#include "HttpStatus.hpp"
+#include "Request.hpp"
+#include "Utils.hpp"
 #include <iostream>
 
 #endif

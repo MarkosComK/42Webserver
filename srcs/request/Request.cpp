@@ -1,4 +1,4 @@
-#include <Request.hpp>
+#include "Request.hpp"
 #include <Utils.hpp>
 #include <cstdlib>
 #include <iostream>
@@ -15,30 +15,21 @@ void testRequestParsing() {
 	};
 
 	TestCase tests[] = {
-	    {"Valid POST (200)",
-	     "POST /submit-form HTTP/1.0\r\nHost: example.com\r\nContent-Type: "
-	     "application/x-www-form-urlencoded\r\nContent-Length: 20\r\n\r\nname=John+Doe&age=30",
-	     true, 200},
-	    {"POST missing Content-Length (411)",
-	     "POST /submit-form HTTP/1.0\r\nHost: example.com\r\nContent-Type: "
-	     "application/x-www-form-urlencoded\r\n\r\nname=John+Doe&age=30",
-	     false, 411},
-	    {"Invalid version (505)", "GET /index.html?debug=true HTTP/1.1\r\nHost: example.com\r\n\r\n", false, 505},
-	    {"Valid GET (200)", "GET /index.html?debug=true HTTP/1.0\r\nHost: example.com\r\n\r\n", true, 200},
-	    {"Invalid method (405)", "PUT /index.html HTTP/1.0\r\nHost: example.com\r\n\r\n", false, 405},
-	    {"Missing path (400)", "GET  HTTP/1.0\r\nHost: example.com\r\n\r\n", false, 400},
-	    {"Invalid version (505)", "GET /index.html HTTP/1.1\r\nHost: example.com\r\n\r\n", false, 505},
-	    {"Headers with extra whitespace (200)",
-	     "GET /index.html HTTP/1.0\r\nHost: example.com\r\nContent-Type: text/html \r\nContent-Length: 5 \r\n\r\nHello",
-	     true, 200},
-	    {"Invalid header format (400)",
-	     "GET /index.html HTTP/1.0\r\nHost example.com\r\nContent-Type text/html\r\n\r\n", false, 400},
-	    {"Empty body with Content-Length (400)",
-	     "POST /submit HTTP/1.0\r\nHost: example.com\r\nContent-Length: 5\r\n\r\n", false, 400},
-	    {"Body length mismatch (400)", "POST /submit HTTP/1.0\r\nHost: example.com\r\nContent-Length: 5\r\n\r\nHi",
-	     false, 400},
-	    {"Valid POST with empty body (200)", "POST /submit HTTP/1.0\r\nHost: example.com\r\nContent-Length: 0\r\n\r\n",
-	     true, 200},
+		{"Valid POST (200)", "POST /submit-form HTTP/1.0\r\nHost: example.com\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 20\r\n\r\nname=John+Doe&age=30", true, 200},
+		{"POST missing Content-Length (411)", "POST /submit-form HTTP/1.0\r\nHost: example.com\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\nname=John+Doe&age=30", false, 411},
+		{"Invalid version (505)", "GET /index.html?debug=true HTTP/1.1\r\nHost: example.com\r\n\r\n", false, 505},
+		{"Valid GET (200)", "GET /index.html?debug=true HTTP/1.0\r\nHost: example.com\r\n\r\n", true, 200},
+		{"Invalid method (405)", "PUT /index.html HTTP/1.0\r\nHost: example.com\r\n\r\n", false, 405},
+		{"Missing path (400)", "GET  HTTP/1.0\r\nHost: example.com\r\n\r\n", false, 400},
+		{"Invalid version (505)", "GET /index.html HTTP/1.1\r\nHost: example.com\r\n\r\n", false, 505},
+		{"Headers with extra whitespace (200)", "GET /index.html HTTP/1.0\r\nHost: example.com\r\nContent-Type: text/html \r\nContent-Length: 5 \r\n\r\nHello", true, 200},
+		{"Invalid header format (400)", "GET /index.html HTTP/1.0\r\nHost example.com\r\nContent-Type text/html\r\n\r\n", false, 400},
+		{"Empty body with Content-Length (400)", "POST /submit HTTP/1.0\r\nHost: example.com\r\nContent-Length: 5\r\n\r\n", false, 400},
+		{"Body length mismatch (400)", "POST /submit HTTP/1.0\r\nHost: example.com\r\nContent-Length: 5\r\n\r\nHi", false, 400},
+		{"Valid POST with empty body (200)", "POST /submit HTTP/1.0\r\nHost: example.com\r\nContent-Length: 0\r\n\r\n", true, 200},
+		{"Invalid request line (400)", "GET/index.htmlHTTP/1.0\r\n\n\r\n", false, 400},
+		{"Query string parsing (200)", "GET /search?q=webserver&lang=en HTTP/1.0\r\nHost: example.com\r\n\r\n", true, 200},
+		{"GET with a full page (200)", "GET /index.html HTTP/1.0\r\nHost: example.com\r\n\r\n<!DOCTYPE html><html><head><title>Test</title></head><body><h1>Hello, World!</h1></body></html>", true, 200}
 	};
 
 	for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); ++i) {
@@ -124,6 +115,14 @@ bool Request::parseVersion() {
 	}
 	return true;
 }
+// TODO: HTTP/1.1 support
+// Currently only accepting HTTP/1.0 to keep things simple.
+// To support 1.1, we would need to handle:
+//	- Mandatory "Host" header validation (400 if missing)
+//	- "Connection: keep-alive" / "Connection: close" header (1.0 closes by default)
+//	- "Transfer-Encoding: chunked" body decoding (required for CGI POST input)
+//	- "Expect: 100-continue" header (client waits for OK before sending body)
+// For now, accepting both 1.0 and 1.1 but treating them the same would be the minimal fix to avoid rejecting modern browser requests.
 
 bool Request::parseHeaders(const std::string &raw) {
 	size_t firstLineEnd = raw.find("\r\n");
@@ -180,7 +179,7 @@ bool Request::parseBody(const std::string &raw) {
 			errorCode = 411;
 			return valid = false;
 		}
-		_body.clear();
+		_body = body;
 		return true;
 	}
 
@@ -210,6 +209,10 @@ bool Request::parseBody(const std::string &raw) {
 	_body = body.substr(0, static_cast<size_t>(contentLength));
 	return true;
 }
+
+// TODO:
+// * URI decoding for path and query string (e.g. %20 -> space, %2F -> /)
+// ...
 
 std::string Request::getMethod() const {
 	return _method;
