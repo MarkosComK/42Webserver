@@ -4,9 +4,12 @@
 #include <iostream>
 #include <sstream>
 
-// tester to read the config file and print the parsed server configs
-// what is the expected output if there's no config file (argv[1] is empty or file doesn't exist)? error or load default values??
-// delete later...
+/* TODO:
+ * add support for root inside server block (should be overridden by location root if both exist)
+
+*/
+
+// tester to read the config file and print the parsed server configs. delete later...
 void testConfigParsing(const std::string &configPath) {
 	std::cout << "Parsing config file: " << configPath << "\n" << std::endl;
 	try {
@@ -17,7 +20,7 @@ void testConfigParsing(const std::string &configPath) {
 
 		for (size_t s = 0; s < servers.size(); ++s) {
 			const ServerConfig &srv = servers[s];
-			std::cout << "=== Server " << s + 1 << " ==="Should it print an error message and exit, or should it use default values?  << std::endl;
+			std::cout << "=== Server " << s + 1 << " ===" << std::endl;
 			std::cout << "  host:               " << srv.host << std::endl;
 			std::cout << "  port:               " << srv.port << std::endl;
 			std::cout << "  server_name:        " << (srv.serverName.empty() ? "(none)" : srv.serverName) << std::endl;

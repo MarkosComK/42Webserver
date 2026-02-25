@@ -13,11 +13,16 @@
 #include "../includes/webserv.hpp"
 #include "../includes/ConfigParser.hpp"
 
-int main() {
+int main(int argc, char *argv[]) {
+	std::string configPath = "config/webserv.conf"; // default path, if no argument is provided
+
+	if (argc > 1) {
+		configPath = argv[1];
+	}
 	// std::cout << "HTTP Status 99: " << HttpStatus::getPhrase(99) << std::endl;
 
 	//testRequestParsing();
-	testConfigParsing("config/webserv.conf");
+	testConfigParsing(configPath);
 
 	return 0;
 }

@@ -20,8 +20,9 @@ struct Location {
 	Location() : redirectCode(0), autoindex(false) {}
 };
 
+// struct of the server configuration defined in the config file; will contain a vector of Location structs for each location block in the server
 struct ServerConfig {
-	std::string host;        // IP to bind, default "0.0.0.0"
+	std::string host;
 	int port;
 	std::string serverName;
 	std::map<int, std::string> errorPages; // e.g. 404 -> "/errors/404.html"
