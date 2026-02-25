@@ -1,0 +1,128 @@
+Here is a simplified, beginner-friendly split of the **42 Webserv** project adapted for **HTTP/1.0** (instead of the usual HTTP/1.1 requirement in most campuses).
+
+HTTP/1.0 (RFC 1945) is noticeably simpler than 1.1 because:
+
+- No persistent connections by default → server **closes** the TCP connection after each response (no need to handle "Connection: keep-alive")
+- No mandatory `Host` header (but still good to parse it if present)
+- No chunked transfer encoding
+- Much simpler connection management → one request = one connection = one response → close
+
+This makes the project significantly easier for beginners with zero HTTP/socket knowledge — ideal for getting something working quickly.
+
+### Quick prerequisites (do together — 1–2 days)
+- Read **RFC 1945** (HTTP/1.0) — focus only on:
+  - Section 4 (Message Types)
+  - Section 5 (Request)
+  - Section 6 (Response)
+  - Section 8 (only common headers: Content-Type, Content-Length, Date, Server, Allow)
+  - Skip authentication, caching, negotiation, etc.
+- Watch short videos:
+  - "What is HTTP?" (5–10 min)
+  - "TCP sockets in C/C++ basics" (Beej's guide style, ~20 min)
+- Create a shared git repo + agree on:
+  - C++98 only
+  - One Makefile
+  - Simple config (e.g. `webserv.conf` with port + root only at first)
+
+### 3-Person split (zero previous knowledge friendly)
+
+**Person A – "Sockets & Connections"**
+Focus: Everything low-level + connection lifecycle (the foundation)
+
+Tasks:
+- Learn `socket()`, `bind()`, `listen()`, `accept()`, `read()`, `write()`, `close()`
+- Make server listen on a port (start with hardcoded 8080)
+- Use **select()** or **poll()** to handle multiple connections
+- Accept new clients → create a simple Client struct/class (fd, buffer, state)
+- Read raw data from clients until you see `\r\n\r\n` (end of headers) or connection closes
+- Detect client disconnect (read returns 0) → close socket
+- After sending response → **always close** the client socket (HTTP/1.0 style)
+- Handle timeouts if possible (simple: close after ~30s inactivity)
+
+First milestone (week 1 goal):
+- Server starts, `telnet localhost 8080` connects
+- You type `GET / HTTP/1.0` + two enters → server reads it, doesn't crash
+- Handles 5–10 simultaneous telnet connections
+
+**Person B – "Request Understanding"**
+Focus: Parsing the incoming HTTP/1.0 request + very basic config
+
+Tasks:
+- Read RFC 1945 section 5 → understand request format
+- Write parser for request-line: `METHOD SP REQUEST-URI SP HTTP-Version CRLF`
+  - Only support `GET` and maybe `HEAD` at first
+  - Check version is exactly `HTTP/1.0` (400 Bad Request otherwise)
+- Parse headers (until double CRLF):
+  - Store in map<string, string> or vector<pair<string,string>>
+  - Important ones: `Content-Length` (for future POST), `User-Agent`, `Date` (ignore most)
+- Parse URI:
+  - Split path vs ?query (query can be ignored at first)
+  - Decode %XX if you want bonus points later
+- Very simple config parser (start minimal):
+  - port
+  - root directory
+  - index file(s) (e.g. index.html)
+  - Later: one location block with allowed methods
+
+First milestone:
+- Takes raw string from Person A → gives structured data:
+  - method, path, version
+  - map of headers
+  - "is valid?" flag (or error code)
+
+**Person C – "Response Builder & File Serving"**
+Focus: Creating correct HTTP/1.0 responses + serving content
+
+Tasks:
+- Read RFC 1945 section 6 → understand response format
+- Build Response class/struct:
+  - Status line: `HTTP/1.0 200 OK` or `404 Not Found`, etc.
+  - Mandatory-ish headers:
+    - `Date` (current time in GMT)
+    - `Server` ("Webserv/1.0" or similar)
+    - `Content-Type` (guess from extension: .html → text/html, .jpg → image/jpeg, etc.)
+    - `Content-Length` (file size in bytes)
+  - Body: file content or error message
+- Serve static GET requests:
+  - Combine config root + request path
+  - If directory → look for index file
+  - If file → read & send
+  - If not found → 404 with simple HTML error page
+- HEAD → same headers as GET but no body
+- Simple error responses (400, 403, 404, 500)
+
+First milestone:
+- Given method/path → returns full response string (status + headers + body)
+- Can serve one `index.html` file correctly
+
+### Suggested order & timeline (~3–5 weeks for minimal working version)
+
+**Week 1** (foundation)
+- Everyone: basics of HTTP/1.0 + sockets
+- A: listening + accept + raw read loop with select()
+- B: dummy request parser (just method + path + version)
+- C: function that returns hardcoded "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\n\r\nHello from 42!"
+
+**Week 2** (first real request-response)
+- Integrate: A reads → B parses → C builds response → A sends + closes connection
+- Add simple config (port + root)
+
+**Week 3** (realistic static site)
+- Serve real files (html, css, images)
+- Add 404 + directory → index.html logic
+- Basic error pages
+
+**Week 4+** (polish & extras — if time)
+- POST support (save uploaded file — Person B + C collaborate)
+- Allowed methods per location (405 Method Not Allowed)
+- Autoindex (directory listing) as bonus
+- More status codes (403, 500…)
+- Test with real browser + curl -0 (forces HTTP/1.0)
+
+### HTTP/1.0 advantages for beginners
+- Much easier multiplexing (no keep-alive logic)
+- No need to parse "Connection:" header for persistence
+- No chunked encoding nightmare
+- Easier to test manually with telnet
+
+Start small → get `GET /` serving one file in browser using HTTP/1.0 → then expand.
