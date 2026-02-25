@@ -22,7 +22,7 @@ class ConfigParser {
 		ServerConfig parseServerBlock(std::vector<std::string> &tokens, size_t &i);
 		Location parseLocationBlock(std::vector<std::string> &tokens, size_t &i);
 		size_t parseSize(const std::string &value);
-		void parseHost(const std::string &value, ServerConfig &server);
+		ListenPair parseHost(const std::string &value);
 
 		class ParseException : public std::exception {
 			public:

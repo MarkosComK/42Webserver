@@ -21,8 +21,9 @@ void testConfigParsing(const std::string &configPath) {
 		for (size_t s = 0; s < servers.size(); ++s) {
 			const ServerConfig &srv = servers[s];
 			std::cout << "=== Server " << s + 1 << " ===" << std::endl;
-			std::cout << "  host:               " << srv.host << std::endl;
-			std::cout << "  port:               " << srv.port << std::endl;
+			std::cout << "  listen pairs (" << srv.listens.size() << "):" << std::endl;
+			for (size_t l = 0; l < srv.listens.size(); ++l)
+				std::cout << "    " << srv.listens[l].host << ":" << srv.listens[l].port << std::endl;
 			std::cout << "  server_name:        " << (srv.serverName.empty() ? "(none)" : srv.serverName) << std::endl;
 			std::cout << "  client_max_body:    " << srv.clientMaxBodySize << " bytes" << std::endl;
 
@@ -153,7 +154,7 @@ ServerConfig ConfigParser::parseServerBlock(std::vector<std::string> &tokens, si
 			++i;
 			if (i >= tokens.size() || tokens[i] == ";")
 				throw ParseException("'listen' requires a value");
-			parseHost(tokens[i], server);
+			server.listens.push_back(parseHost(tokens[i]));
 			++i;
 			if (i >= tokens.size() || tokens[i] != ";")
 				throw ParseException("Expected ';' after 'listen' value");
@@ -211,7 +212,7 @@ ServerConfig ConfigParser::parseServerBlock(std::vector<std::string> &tokens, si
 		throw ParseException("Unexpected end of file in server block");
 	++i; // consume '}'
 
-	if (server.port == 0)
+		if (server.listens.empty())
 		throw ParseException("Server block is missing 'listen' directive");
 	return server;
 }
@@ -334,15 +335,21 @@ size_t ConfigParser::parseSize(const std::string &value) {
 	return static_cast<size_t>(n) * multiplier;
 }
 
-void ConfigParser::parseHost(const std::string &value, ServerConfig &server) {
+ListenPair ConfigParser::parseHost(const std::string &value) {
 	size_t colon = value.find(':');
+	std::string host;
+	int port;
 	if (colon != std::string::npos) {
-		server.host = value.substr(0, colon);
-		server.port = std::atoi(value.substr(colon + 1).c_str());
+		host = value.substr(0, colon);
+		port = std::atoi(value.substr(colon + 1).c_str());
+	} else if (value.find('.') != std::string::npos) {
+		// looks like an IP address but no port was provided
+		throw ParseException("'listen' with an IP address requires a port (e.g., 127.0.0.1:8080): " + value);
 	} else {
-		server.host = "0.0.0.0";
-		server.port = std::atoi(value.c_str());
+		host = "0.0.0.0";
+		port = std::atoi(value.c_str());
 	}
-	if (server.port <= 0 || server.port > 65535)
+	if (port <= 0 || port > 65535)
 		throw ParseException("Invalid port in 'listen': " + value);
+	return ListenPair(host, port);
 }

@@ -20,16 +20,22 @@ struct Location {
 	Location() : redirectCode(0), autoindex(false) {}
 };
 
-// struct of the server configuration defined in the config file; will contain a vector of Location structs for each location block in the server
-struct ServerConfig {
+struct ListenPair {
 	std::string host;
 	int port;
+
+	ListenPair(const std::string &h, int p) : host(h), port(p) {}
+};
+
+struct ServerConfig {
+	std::vector<ListenPair> listens;
+	std::string root; // TODO: create a default root
 	std::string serverName;
 	std::map<int, std::string> errorPages; // e.g. 404 -> "/errors/404.html"
 	size_t clientMaxBodySize;
 	std::vector<Location> locations;
 
-	ServerConfig() : host("0.0.0.0"), port(0), clientMaxBodySize(1024 * 1024) {}
+	ServerConfig() : clientMaxBodySize(1024 * 1024) {}
 };
 
 #endif
