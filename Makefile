@@ -1,32 +1,33 @@
-NAME		= webserv
+NAME = webserv
 
-# Recursive wildcard function for flexibility. LLM MADE
-rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
+SRCS = main.cpp srcs/Socket.cpp srcs/Client.cpp
 
-# Automatically find ALL .cpp files anywhere under srcs/
-SRCS		= $(call rwildcard,srcs,*.cpp)
+HEADERS	= includes/Socket.hpp includes/Client.hpp
 
-OBJS		= $(patsubst srcs/%.cpp,objs/%.o,$(SRCS))
+OBJS = $(SRCS:.cpp=.o)
 
-CXX		= c++
-CXXFLAGS	= -Wall -Wextra -Werror -std=c++98 -I./includes
+CXX = c++
 
-all: $(NAME)
+CXXFLAGS = -Wall -Wextra -Werror -std=c++98
+CXXFLAGS += -g3
 
-$(NAME): $(OBJS)
+RM = rm -rf
+
+RESET = "\033[0m"
+BLACK = "\033[1m\033[37m"
+
+all:
+	@$(MAKE) $(NAME) -j5
+$(NAME) : $(OBJS) $(HEADERS)
 	$(CXX) $(CXXFLAGS) $(OBJS) -o $(NAME)
-
-# objs/ folder for my friends that uses vscode. [neo]Vim is better btw.
-objs/%.o: srcs/%.cpp
-	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	@echo $(BLACK)-webserv compiled 🌐 $(RESET)
 
 clean:
-	rm -rf $(OBJS)
+	$(RM) $(OBJS)
 
 fclean: clean
-	rm -f $(NAME)
+	$(RM) $(NAME)
 
-re: fclean all
+re: 	fclean all
 
 .PHONY: all clean fclean re

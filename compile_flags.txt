@@ -1,5 +1,0 @@
--std=c++98
--I./includes
--Wall
--Wextra
--Werror
