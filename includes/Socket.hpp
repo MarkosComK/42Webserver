@@ -43,8 +43,16 @@ class Socket{
 		void bind_socket();
 		void listen_socket();
 		void start_poll();
+		void close_socket();
+		void close_client(size_t id);
+		void run();
+		void accept_new_clients();
+		bool client_read(size_t id);
+		bool client_write(size_t id);
 };
 
 void die(const char *msg);
+
+std::string build_response_200_text(const std::string& body);
 
 #endif
