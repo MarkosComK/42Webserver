@@ -117,13 +117,8 @@ bool Request::parseVersion() {
 	return true;
 }
 // TODO: HTTP/1.1 support
-// Currently only accepting HTTP/1.0 to keep things simple.
-// To support 1.1, we would need to handle:
-//	- Mandatory "Host" header validation (400 if missing)
-//	- "Connection: keep-alive" / "Connection: close" header (1.0 closes by default)
-//	- "Transfer-Encoding: chunked" body decoding (required for CGI POST input)
-//	- "Expect: 100-continue" header (client waits for OK before sending body)
-// For now, accepting both 1.0 and 1.1 but treating them the same would be the minimal fix to avoid rejecting modern browser requests.
+//	- "Transfer-Encoding: chunked" body decoding - CGI/POST with large bodies (browsers use it when they don't know the body size upfront)
+//	- "Expect: 100-continue" header - large file uploads (client asks "are you ready?" before sending the body)
 
 bool Request::parseHeaders(const std::string &raw) {
 	size_t firstLineEnd = raw.find("\r\n");
