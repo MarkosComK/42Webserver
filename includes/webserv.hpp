@@ -17,11 +17,11 @@
 #define STATUS411 "411 Length Required"
 #define STATUS500 "500 Internal Server Error"
 #define STATUS501 "501 Not Implemented"
+#define STATUS505 "505 HTTP Version Not Supported"
 #define STATUS502 "502 Bad Gateway"
 #define STATUS503 "503 Service Unavailable"
 
 #include "Config.hpp"
-#include "HttpStatus.hpp"
 #include "Request.hpp"
 #include "Utils.hpp"
 #include <iostream>

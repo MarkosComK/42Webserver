@@ -11,7 +11,7 @@
 
 // tester to read the config file and print the parsed server configs. delete later...
 void testConfigParsing(const std::string &configPath) {
-	std::cout << "Parsing config file: " << configPath << "\n" << std::endl;
+	std::cout << "===================================== Parsing config file: " << configPath << " =====================================" << std::endl;
 	try {
 		ConfigParser parser(configPath);
 		const std::vector<ServerConfig> &servers = parser.getServers();

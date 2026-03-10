@@ -5,7 +5,7 @@
 
 // delete later...
 void testRequestParsing() {
-	std::cout << "Parsing HTTP Request tests...\n" << std::endl;
+	std::cout << "===================================== Parsing HTTP Request tests... =====================================" << std::endl;
 
 	struct TestCase {
 		const char *name;
@@ -109,7 +109,7 @@ bool Request::parsePath() {
 }
 
 bool Request::parseVersion() {
-	if (_version != "HTTP/1.0") {
+	if (_version != "HTTP/1.0" && _version != "HTTP/1.1") {
 		errorCode = 505;
 		return valid = false;
 	}

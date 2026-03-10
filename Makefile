@@ -1,32 +1,37 @@
-NAME		= webserv
+NAME = webserv
 
-# Recursive wildcard function for flexibility. LLM MADE
+# Recursive wildcard function for flexibility
 rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
 
-# Automatically find ALL .cpp files anywhere under srcs/
-SRCS		= $(call rwildcard,srcs,*.cpp)
+# Automatically find ALL .cpp files in main directory and srcs/
+SRCS = main.cpp $(call rwildcard,srcs,*.cpp)
 
-OBJS		= $(patsubst srcs/%.cpp,objs/%.o,$(SRCS))
+HEADERS	= includes/Socket.hpp includes/Client.hpp includes/Request.hpp includes/Config.hpp includes/ConfigParser.hpp includes/Utils.hpp includes/webserv.hpp
 
-CXX		= c++
-CXXFLAGS	= -Wall -Wextra -Werror -std=c++98 -I./includes
+OBJS = $(SRCS:.cpp=.o)
 
-all: $(NAME)
+CXX = c++
 
-$(NAME): $(OBJS)
+CXXFLAGS = -Wall -Wextra -Werror -std=c++98 -I./includes
+CXXFLAGS += -g3
+
+RM = rm -rf
+
+RESET = "\033[0m"
+BLACK = "\033[1m\033[37m"
+
+all:
+	@$(MAKE) $(NAME) -j5
+$(NAME) : $(OBJS) $(HEADERS)
 	$(CXX) $(CXXFLAGS) $(OBJS) -o $(NAME)
-
-# objs/ folder for my friends that uses vscode. [neo]Vim is better btw.
-objs/%.o: srcs/%.cpp
-	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	@echo $(BLACK)-webserv compiled 🌐 $(RESET)
 
 clean:
-	rm -rf $(OBJS)
+	$(RM) $(OBJS)
 
 fclean: clean
-	rm -f $(NAME)
+	$(RM) $(NAME)
 
-re: fclean all
+re: 	fclean all
 
 .PHONY: all clean fclean re
