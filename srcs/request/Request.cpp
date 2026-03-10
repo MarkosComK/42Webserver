@@ -17,11 +17,12 @@ void testRequestParsing() {
 	TestCase tests[] = {
 		{"Valid POST (200)", "POST /submit-form HTTP/1.0\r\nHost: example.com\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 20\r\n\r\nname=John+Doe&age=30", true, 200},
 		{"POST missing Content-Length (411)", "POST /submit-form HTTP/1.0\r\nHost: example.com\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\nname=John+Doe&age=30", false, 411},
-		{"Invalid version (505)", "GET /index.html?debug=true HTTP/1.1\r\nHost: example.com\r\n\r\n", false, 505},
-		{"Valid GET (200)", "GET /index.html?debug=true HTTP/1.0\r\nHost: example.com\r\n\r\n", true, 200},
+		{"Unsupported version (505)", "GET /index.html HTTP/2.0\r\nHost: example.com\r\n\r\n", false, 505},
+		{"Valid GET HTTP/1.0 (200)", "GET /index.html?debug=true HTTP/1.0\r\nHost: example.com\r\n\r\n", true, 200},
+		{"Valid GET HTTP/1.1 (200)", "GET /index.html HTTP/1.1\r\nHost: example.com\r\n\r\n", true, 200},
+		{"HTTP/1.1 missing Host (400)", "GET /index.html HTTP/1.1\r\nContent-Type: text/html\r\n\r\n", false, 400},
 		{"Invalid method (405)", "PUT /index.html HTTP/1.0\r\nHost: example.com\r\n\r\n", false, 405},
 		{"Missing path (400)", "GET  HTTP/1.0\r\nHost: example.com\r\n\r\n", false, 400},
-		{"Invalid version (505)", "GET /index.html HTTP/1.1\r\nHost: example.com\r\n\r\n", false, 505},
 		{"Headers with extra whitespace (200)", "GET /index.html HTTP/1.0\r\nHost: example.com\r\nContent-Type: text/html \r\nContent-Length: 5 \r\n\r\nHello", true, 200},
 		{"Invalid header format (400)", "GET /index.html HTTP/1.0\r\nHost example.com\r\nContent-Type text/html\r\n\r\n", false, 400},
 		{"Empty body with Content-Length (400)", "POST /submit HTTP/1.0\r\nHost: example.com\r\nContent-Length: 5\r\n\r\n", false, 400},
@@ -161,6 +162,11 @@ bool Request::parseHeaders(const std::string &raw) {
 			key[i] = static_cast<char>(std::tolower(static_cast<unsigned char>(key[i])));
 		}
 		_headers[key] = value;
+	}
+	// HTTP/1.1 requires Host header (RFC 7230 section 5.4)
+	if (_version == "HTTP/1.1" && _headers.find("host") == _headers.end()) {
+		errorCode = 400;
+		return valid = false;
 	}
 	return true;
 }
