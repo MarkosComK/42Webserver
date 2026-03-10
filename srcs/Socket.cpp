@@ -6,7 +6,7 @@
 /*   By: carlos-j <carlos-j@student.42porto.com>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/03/02 12:33:10 by pemirand          #+#    #+#             */
-/*   Updated: 2026/03/10 12:47:59 by carlos-j         ###   ########.fr       */
+/*   Updated: 2026/03/10 13:27:55 by carlos-j         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,9 +16,12 @@
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
+#include <fstream>
+#include <sstream>
 
 // Forward declarations
 static std::string itoa_int(int n);
+std::string serve_file(const std::string& requestPath);
 
 Socket::Socket(){
 	port_ = 80;
@@ -135,9 +138,6 @@ bool Socket::client_read(size_t id){
 			client.appendBf_in(buf, (size_t)n);
 			if (!client.getHeaders_done() && client.getBf_in().find("\r\n\r\n") != std::string::npos){
 				client.setHeaders_done(true);
-				// removed this part:
-				// const std::string body = "Hello! poll + non-blocking OK\n";
-				// client.appendBf_out(build_response_200_text(body));
 
 				//  call the parsing made by carlos-j
 				const std::string& rawRequest = client.getBf_in();
@@ -149,14 +149,7 @@ bool Socket::client_read(size_t id){
 					std::string errorBody = "Error " + itoa_int(errorCode) + "\n";
 					response = build_error_response(errorCode, errorBody);
 				} else {
-					// valid, response with the parsed info; later, replace this with the actual request...
-					std::string body = "Request parsed successfully!\n";
-					body += "Method: " + request.getMethod() + "\n";
-					body += "Path: " + request.getPath() + "\n";
-					body += "Query: " + request.getQuery() + "\n";
-					body += "Version: " + request.getVersion() + "\n";
-					response = build_response_200_text(body);
-					// now the idea here is to call the function that will handle the request, like accessing a page, executing a script, etc...
+					response = serve_file(request.getPath());
 				}
 
 				client.appendBf_out(response);
@@ -287,11 +280,59 @@ static std::string itoa_int(int n){
     return std::string(buf);
 }
 
+static std::string mime_type(const std::string& path) {
+	size_t dot = path.rfind('.');
+	if (dot == std::string::npos) return "application/octet-stream";
+	std::string ext = path.substr(dot);
+	if (ext == ".html" || ext == ".htm") return "text/html";
+	if (ext == ".css")  return "text/css";
+	if (ext == ".js")   return "application/javascript";
+	if (ext == ".png")  return "image/png";
+	if (ext == ".jpg" || ext == ".jpeg") return "image/jpeg";
+	if (ext == ".gif")  return "image/gif";
+	if (ext == ".ico")  return "image/x-icon";
+	if (ext == ".txt")  return "text/plain";
+	return "application/octet-stream";
+}
+
+std::string serve_file(const std::string& requestPath) {
+	// later change it acording to config file
+	std::string filePath = "www" + (requestPath == "/" ? "/index.html" : requestPath);
+	std::ifstream file(filePath.c_str(), std::ios::binary);
+	if (!file.is_open()) {
+		std::ifstream page404("www/404.html", std::ios::binary);
+		std::string body404;
+		if (page404.is_open()) {
+			std::ostringstream ss;
+			ss << page404.rdbuf();
+			body404 = ss.str();
+		} else {
+			body404 = "<h1>404 Not Found</h1>\n";
+		}
+		return std::string("HTTP/1.1 ") + STATUS404 + "\r\n"
+			+ "Content-Type: text/html\r\n"
+			+ "Content-Length: " + itoa_int((int)body404.size()) + "\r\n"
+			+ "Connection: close\r\n"
+			+ "\r\n"
+			+ body404;
+	}
+	std::ostringstream ss;
+	ss << file.rdbuf();
+	std::string body = ss.str();
+	return std::string("HTTP/1.1 ") + STATUS200 + "\r\n"
+		+ "Content-Type: " + mime_type(filePath) + "\r\n"
+		+ "Content-Length: " + itoa_int((int)body.size()) + "\r\n"
+		+ "Connection: close\r\n"
+		+ "\r\n"
+		+ body;
+}
+
 // hardcoded response, replace it by marsoare's work later...
 std::string build_error_response(int errorCode, const std::string& body) {
 	std::string statusLine;
 	switch (errorCode) {
 		case 400: statusLine = "HTTP/1.1 " STATUS400 "\r\n"; break;
+		case 404: statusLine = "HTTP/1.1 " STATUS404 "\r\n"; break;
 		case 405: statusLine = "HTTP/1.1 " STATUS405 "\r\n"; break;
 		case 411: statusLine = "HTTP/1.1 " STATUS411 "\r\n"; break;
 		case 505: statusLine = "HTTP/1.1 " STATUS505 "\r\n"; break;
@@ -303,14 +344,4 @@ std::string build_error_response(int errorCode, const std::string& body) {
 		"Connection: close\r\n" +
 		"\r\n" +
 		body;
-}
-
-std::string build_response_200_text(const std::string& body)
-{
-    return
-        "HTTP/1.1 " STATUS200 "\r\n"
-        "Content-Type: text/plain\r\n"
-        "Content-Length: " + itoa_int((int)body.size()) + "\r\n"
-        "Connection: close\r\n"
-        "\r\n" + body;
 }

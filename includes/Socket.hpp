@@ -54,6 +54,5 @@ class Socket{
 void die(const char *msg);
 
 std::string build_error_response(int errorCode, const std::string& body);
-std::string build_response_200_text(const std::string& body);
 
 #endif
