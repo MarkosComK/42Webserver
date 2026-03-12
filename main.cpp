@@ -6,7 +6,7 @@
 /*   By: carlos-j <carlos-j@student.42porto.com>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/02/12 20:21:48 by marsoare          #+#    #+#             */
-/*   Updated: 2026/03/12 12:01:10 by carlos-j         ###   ########.fr       */
+/*   Updated: 2026/03/12 12:16:56 by carlos-j         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
 
 		int port = servers[0].listens.empty() ? 8080 : servers[0].listens[0].port;
 
-		Socket socket(port);
+		Socket socket(port, servers[0]);
 
 		// TODO: support multiple servers and virtual hosting based on Host header
 		// Socket socket(parser.getServers()); // something like this...

@@ -6,13 +6,14 @@
 /*   By: carlos-j <carlos-j@student.42porto.com>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/03/02 12:33:10 by pemirand          #+#    #+#             */
-/*   Updated: 2026/03/10 13:38:35 by carlos-j         ###   ########.fr       */
+/*   Updated: 2026/03/12 12:19:30 by carlos-j         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "../includes/Socket.hpp"
 #include "../includes/Request.hpp"
 #include "../includes/webserv.hpp"
+#include "../includes/Utils.hpp"
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
@@ -21,14 +22,21 @@
 
 // Forward declarations
 static std::string itoa_int(int n);
-std::string serve_file(const std::string& requestPath);
+std::string serve_file(const std::string& requestPath, const ServerConfig& config);
 
 Socket::Socket(){
 	port_ = 80;
+	// TODO: default config with a "/" location that serves files from current directory
 }
 
+ // remove this later and keep jsut the one that takes the ServerConfig ?
 Socket::Socket(int port){
 	port_ = port;
+}
+
+Socket::Socket(int port, const ServerConfig &config){
+	port_ = port;
+	server_config_ = config;
 }
 
 Socket::Socket(const Socket &other){
@@ -37,6 +45,7 @@ Socket::Socket(const Socket &other){
 	socket_addr_ = other.socket_addr_;
 	poll_fds_ = other.poll_fds_;
 	clients_ = other.clients_;
+	server_config_ = other.server_config_;
 }
 
 Socket &Socket::operator=(const Socket &other){
@@ -47,6 +56,7 @@ Socket &Socket::operator=(const Socket &other){
 		socket_addr_ = other.socket_addr_;
 		poll_fds_ = other.poll_fds_;
 		clients_ = other.clients_;
+		server_config_ = other.server_config_;
 	}
 	return *this;
 }
@@ -139,7 +149,7 @@ bool Socket::client_read(size_t id){
 			if (!client.getHeaders_done() && client.getBf_in().find("\r\n\r\n") != std::string::npos){
 				client.setHeaders_done(true);
 
-				//  call the parsing made by carlos-j
+				// call the parsing made by carlos-j
 				const std::string& rawRequest = client.getBf_in();
 				Request request(rawRequest);
 				std::string response;
@@ -149,7 +159,7 @@ bool Socket::client_read(size_t id){
 					std::string errorBody = "Error " + itoa_int(errorCode) + "\n";
 					response = build_error_response(errorCode, errorBody);
 				} else {
-					response = serve_file(request.getPath());
+					response = serve_file(request.getPath(), server_config_); // added server_config to read from file
 				}
 
 				client.appendBf_out(response);
@@ -280,6 +290,7 @@ static std::string itoa_int(int n){
     return std::string(buf);
 }
 
+// to be replaced or moved to marsoare's part...
 static std::string mime_type(const std::string& path) {
 	size_t dot = path.rfind('.');
 	if (dot == std::string::npos) return "application/octet-stream";
@@ -295,26 +306,47 @@ static std::string mime_type(const std::string& path) {
 	return "application/octet-stream";
 }
 
-std::string serve_file(const std::string& requestPath) {
-	// later change it acording to config file
-	std::string filePath = "www" + (requestPath == "/" ? "/index.html" : requestPath);
+std::string serve_file(const std::string& requestPath, const ServerConfig& config) {
+	const Location *loc = matchLocation(requestPath, config);
+
+	// handle redirect
+	if (loc && loc->redirectCode != 0) {
+		std::string body = "<html><body>Redirecting to <a href=\"" + loc->redirect + "\">" + loc->redirect + "</a></body></html>\n";
+		std::string statusLine = "HTTP/1.1 " + itoa_int(loc->redirectCode) + " Redirect";
+		if (loc->redirectCode == 301) statusLine = "HTTP/1.1 " STATUS301;
+		if (loc->redirectCode == 302) statusLine = "HTTP/1.1 " STATUS302;
+		return statusLine + "\r\n"
+			+ "Location: " + loc->redirect + "\r\n"
+			+ "Content-Type: text/html\r\n"
+			+ "Content-Length: " + itoa_int((int)body.size()) + "\r\n"
+			+ "Connection: close\r\n"
+			+ "\r\n" + body;
+	}
+
+	// resolve root and index from matching location, fall back to "www"
+	std::string root  = (loc && !loc->root.empty())  ? loc->root  : "www";
+	std::string index = (loc && !loc->index.empty()) ? loc->index : "index.html";
+
+	std::string filePath = root + (requestPath == "/" ? "/" + index : requestPath);
 	std::ifstream file(filePath.c_str(), std::ios::binary);
 	if (!file.is_open()) {
-		std::ifstream page404("www/404.html", std::ios::binary);
+		// check config error_pages for 404, then fall back to www/404.html
 		std::string body404;
-		if (page404.is_open()) {
-			std::ostringstream ss;
-			ss << page404.rdbuf();
-			body404 = ss.str();
-		} else {
-			body404 = "<h1>404 Not Found</h1>\n";
+		std::map<int, std::string>::const_iterator ep = config.errorPages.find(404);
+		if (ep != config.errorPages.end()) {
+			std::ifstream ef((root + ep->second).c_str(), std::ios::binary);
+			if (ef.is_open()) { std::ostringstream ss; ss << ef.rdbuf(); body404 = ss.str(); }
+		}
+		if (body404.empty()) {
+			std::ifstream page404("www/404.html", std::ios::binary);
+			if (page404.is_open()) { std::ostringstream ss; ss << page404.rdbuf(); body404 = ss.str(); }
+			else body404 = "<h1>404 Not Found</h1>\n";
 		}
 		return std::string("HTTP/1.1 ") + STATUS404 + "\r\n"
 			+ "Content-Type: text/html\r\n"
 			+ "Content-Length: " + itoa_int((int)body404.size()) + "\r\n"
 			+ "Connection: close\r\n"
-			+ "\r\n"
-			+ body404;
+			+ "\r\n" + body404;
 	}
 	std::ostringstream ss;
 	ss << file.rdbuf();
@@ -323,8 +355,7 @@ std::string serve_file(const std::string& requestPath) {
 		+ "Content-Type: " + mime_type(filePath) + "\r\n"
 		+ "Content-Length: " + itoa_int((int)body.size()) + "\r\n"
 		+ "Connection: close\r\n"
-		+ "\r\n"
-		+ body;
+		+ "\r\n" + body;
 }
 
 // hardcoded response, replace it by marsoare's work later...

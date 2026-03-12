@@ -24,6 +24,7 @@
 # include <map>
 # include <netinet/in.h>
 # include "Client.hpp"
+# include "Config.hpp"
 
 class Socket{
 	private:
@@ -32,9 +33,11 @@ class Socket{
 		sockaddr_in					socket_addr_;
 		std::vector<pollfd>			poll_fds_;
 		std::map<int, Client>		clients_;
+		ServerConfig				server_config_;
 	public:
 		Socket();
-		Socket(int port);
+		Socket(int port); // remove this later and keep jsut the one that takes the ServerConfig ?
+		Socket(int port, const ServerConfig &config);
 		Socket(const Socket &other);
 		Socket &operator=(const Socket &other);
 		~Socket();
