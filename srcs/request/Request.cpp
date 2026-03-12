@@ -83,7 +83,7 @@ bool Request::parseRequestLine(const std::string &raw) {
 	return true;
 }
 
-// You need at least the GET, POST, and DELETE methods.
+// "You need at least the GET, POST, and DELETE methods."
 bool Request::parseMethod() {
 	if (_method != "GET" && _method != "POST" && _method != "DELETE") {
 		errorCode = 405; // Method Not Allowed
@@ -116,6 +116,7 @@ bool Request::parseVersion() {
 	}
 	return true;
 }
+
 // TODO: HTTP/1.1 support
 //	- "Transfer-Encoding: chunked" body decoding - CGI/POST with large bodies (browsers use it when they don't know the body size upfront)
 //	- "Expect: 100-continue" header - large file uploads (client asks "are you ready?" before sending the body)

@@ -31,7 +31,7 @@ struct ServerConfig {
 	std::vector<ListenPair> listens;
 	std::string root; // TODO: create a default root
 	std::string serverName;
-	std::map<int, std::string> errorPages; // e.g. 404 -> "/errors/404.html"
+	std::map<int, std::string> errorPages;
 	size_t clientMaxBodySize;
 	std::vector<Location> locations;
 
