@@ -32,7 +32,7 @@
 
 class Socket{
 	private:
-		int							port_;
+		int							port_; // change with a list for multiple ports (like std::vector<ListenPair> )
 		int							listen_fd_;
 		sockaddr_in					socket_addr_;
 		std::vector<pollfd>			poll_fds_;
@@ -41,7 +41,8 @@ class Socket{
 	public:
 		//Socket();
 		//Socket(int port); // remove this later and keep jsut the one that takes the ServerConfig ?
-		Socket(int port, const ServerConfig &config);
+		//Socket(int port, const ServerConfig &config);
+		Socket(const ServerConfig &config);
 		Socket(const Socket &other);
 		Socket &operator=(const Socket &other);
 		~Socket();

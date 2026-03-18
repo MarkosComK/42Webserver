@@ -6,7 +6,7 @@
 /*   By: carlos-j <carlos-j@student.42porto.com>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/03/02 12:33:10 by pemirand          #+#    #+#             */
-/*   Updated: 2026/03/18 11:55:29 by carlos-j         ###   ########.fr       */
+/*   Updated: 2026/03/18 17:25:40 by carlos-j         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -30,8 +30,10 @@ Socket::Socket(int port){
 	port_ = port;
 }*/
 
-Socket::Socket(int port, const ServerConfig &config){
-	port_ = port;
+//Socket::Socket(int port, const ServerConfig &config){
+Socket::Socket(const ServerConfig &config){
+	//port_ = port;
+	port_ = config.listens.empty() ? 8080 : config.listens[0].port;
 	server_config_ = config;
 }
 
@@ -58,6 +60,7 @@ Socket &Socket::operator=(const Socket &other){
 }
 
 Socket::~Socket(){}
+
 
 void Socket::init_socket(){
 	listen_fd_ = socket(AF_INET, SOCK_STREAM, 0);
