@@ -15,6 +15,7 @@
 #define STATUS404 "404 Not Found"
 #define STATUS405 "405 Method Not Allowed"
 #define STATUS411 "411 Length Required"
+#define STATUS413 "413 Payload Too Large"
 #define STATUS500 "500 Internal Server Error"
 #define STATUS501 "501 Not Implemented"
 #define STATUS505 "505 HTTP Version Not Supported"

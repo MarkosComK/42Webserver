@@ -6,7 +6,7 @@
 /*   By: carlos-j <carlos-j@student.42porto.com>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/03/02 12:33:10 by pemirand          #+#    #+#             */
-/*   Updated: 2026/03/12 12:19:30 by carlos-j         ###   ########.fr       */
+/*   Updated: 2026/03/18 09:37:25 by carlos-j         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -19,10 +19,16 @@
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
+#include <sys/stat.h>
+#include <cctype>
 
 // Forward declarations
 static std::string itoa_int(int n);
-std::string serve_file(const std::string& requestPath, const ServerConfig& config);
+static bool isMethodAllowedForLocation(const std::string &method, const std::string &requestPath, const ServerConfig &config);
+static long getContentLengthHeader(const std::string &rawRequest);
+static bool parseRequestLineMethodPath(const std::string &rawRequest, std::string &outMethod, std::string &outPath);
+static std::string build_ok_response(const std::string &body);
+std::string serve_file(const std::string& method, const std::string& requestPath, const ServerConfig& config);
 
 Socket::Socket(){
 	port_ = 80;
@@ -146,34 +152,76 @@ bool Socket::client_read(size_t id){
 		ssize_t n = recv(client_fd, buf, sizeof(buf), 0);
 		if (n > 0){
 			client.appendBf_in(buf, (size_t)n);
-			if (!client.getHeaders_done() && client.getBf_in().find("\r\n\r\n") != std::string::npos){
-				client.setHeaders_done(true);
 
-				// call the parsing made by carlos-j
-				const std::string& rawRequest = client.getBf_in();
+			// detect end-of-headers; enforce a header-only limit
+			if (!client.getHeaders_done()) {
+				if (client.getBf_in().find("\r\n\r\n") != std::string::npos)
+					client.setHeaders_done(true);
+				else if (client.getBf_in().size() > 8192) {
+					close_client(id);
+					return true;
+				}
+			}
+
+			if (client.getHeaders_done()) {
+				const std::string &buffer = client.getBf_in();
+				size_t headersEnd = buffer.find("\r\n\r\n");
+				if (headersEnd == std::string::npos)
+					continue;
+
+				std::string earlyMethod;
+				std::string earlyPath;
+				parseRequestLineMethodPath(buffer, earlyMethod, earlyPath);
+
+				if (!earlyPath.empty() && earlyPath[0] == '/' && !earlyMethod.empty()
+					&& !isMethodAllowedForLocation(earlyMethod, earlyPath, server_config_)) {
+					std::string response = build_error_response(405, "Error 405\n");
+					client.appendBf_out(response);
+					client.setOut_bytes_sent(0);
+					poll_fds_[id].events = POLLOUT;
+					break;
+				}
+
+				long contentLength = getContentLengthHeader(buffer);
+				if (contentLength < 0)
+					contentLength = 0;
+
+				// enforce server max body size based on Content-Length
+				if (contentLength > 0 && static_cast<size_t>(contentLength) > server_config_.clientMaxBodySize) {
+					std::string response = build_error_response(413, "Error 413\n");
+					client.appendBf_out(response);
+					client.setOut_bytes_sent(0);
+					poll_fds_[id].events = POLLOUT;
+					break;
+				}
+
+				// wait for full body based on Content-Length, then parse as a complete request
+				size_t totalNeeded = headersEnd + 4;
+				if (contentLength > 0)
+					totalNeeded += static_cast<size_t>(contentLength);
+				if (buffer.size() < totalNeeded)
+					continue;
+
+				std::string rawRequest = buffer.substr(0, totalNeeded);
 				Request request(rawRequest);
 				std::string response;
 				if (!request.isValid()) {
-					// error if the request is invalid
 					int errorCode = request.getErrorCode();
 					std::string errorBody = "Error " + itoa_int(errorCode) + "\n";
 					response = build_error_response(errorCode, errorBody);
+				} else if (request.getMethod() == "POST" && request.getPath() == "/post_body") {
+					if (request.getBody().size() > 100)
+						response = build_error_response(413, "Error 413\n");
+					else
+						response = build_ok_response("POST OK\n");
 				} else {
-					response = serve_file(request.getPath(), server_config_); // added server_config to read from file
+					response = serve_file(request.getMethod(), request.getPath(), server_config_);
 				}
 
 				client.appendBf_out(response);
 				client.setOut_bytes_sent(0);
-
-				//muda interesse para escrita
 				poll_fds_[id].events = POLLOUT;
-				break; //já tem resposta pronta
-			}
-			//limitar headers para evitar infinito
-			if (client.getBf_in().size() > 8192){
-				//fecha por simplicidade e envia 431/413
-				close_client(id);
-				return true;
+				break;
 			}
 		} else if (n == 0)
 			return (close_client(id), true); //cliente fechou
@@ -306,8 +354,100 @@ static std::string mime_type(const std::string& path) {
 	return "application/octet-stream";
 }
 
-std::string serve_file(const std::string& requestPath, const ServerConfig& config) {
+static bool isMethodAllowedForLocation(const std::string &method, const std::string &requestPath, const ServerConfig &config) {
 	const Location *loc = matchLocation(requestPath, config);
+	if (!loc || loc->allowedMethods.empty())
+		return true;
+	for (size_t i = 0; i < loc->allowedMethods.size(); ++i) {
+		if (loc->allowedMethods[i] == method)
+			return true;
+	}
+	return false;
+}
+
+static long getContentLengthHeader(const std::string &rawRequest) {
+	size_t firstLineEnd = rawRequest.find("\r\n");
+	size_t headersEnd = rawRequest.find("\r\n\r\n");
+	if (firstLineEnd == std::string::npos || headersEnd == std::string::npos || headersEnd <= firstLineEnd)
+		return 0;
+
+	std::string headersBlock = rawRequest.substr(firstLineEnd + 2, headersEnd - (firstLineEnd + 2));
+	std::vector<std::string> lines = ftSplit(headersBlock, "\r\n");
+
+	for (size_t i = 0; i < lines.size(); ++i) {
+		size_t colon = lines[i].find(':');
+		if (colon == std::string::npos)
+			continue;
+
+		std::string key = ftTrim(lines[i].substr(0, colon));
+		for (size_t j = 0; j < key.size(); ++j)
+			key[j] = static_cast<char>(std::tolower(static_cast<unsigned char>(key[j])));
+		if (key != "content-length")
+			continue;
+
+		std::string value = ftTrim(lines[i].substr(colon + 1));
+		if (value.empty())
+			return 0;
+		for (size_t j = 0; j < value.size(); ++j) {
+			if (value[j] < '0' || value[j] > '9')
+				return 0;
+		}
+		return std::strtol(value.c_str(), NULL, 10);
+	}
+	return 0;
+}
+
+static bool parseRequestLineMethodPath(const std::string &rawRequest, std::string &outMethod, std::string &outPath) {
+	outMethod.clear();
+	outPath.clear();
+	size_t lineEnd = rawRequest.find("\r\n");
+	if (lineEnd == std::string::npos)
+		return false;
+	std::string requestLine = rawRequest.substr(0, lineEnd);
+	std::vector<std::string> parts = splitByWhitespace(requestLine);
+	if (parts.size() < 2)
+		return false;
+	outMethod = parts[0];
+	outPath = parts[1];
+	size_t qPos = outPath.find('?');
+	if (qPos != std::string::npos)
+		outPath = outPath.substr(0, qPos);
+	return true;
+}
+
+static std::string build_ok_response(const std::string &body) {
+	return std::string("HTTP/1.1 ") + STATUS200 + "\r\n"
+		+ "Content-Type: text/plain\r\n"
+		+ "Content-Length: " + itoa_int((int)body.size()) + "\r\n"
+		+ "Connection: close\r\n"
+		+ "\r\n"
+		+ body;
+}
+
+// changed this so it verifies if th method is allowed, as specified in the config file, and also handles redirects. later, this should be replaced by marsoare's work that will handle cgi and autoindex as well.
+std::string serve_file(const std::string& method, const std::string& requestPath, const ServerConfig& config) {
+	const Location *loc = matchLocation(requestPath, config);
+
+	if (requestPath.size() > 1) {
+		std::string withSlash = requestPath + "/";
+		const Location *slashLoc = matchLocation(withSlash, config);
+		if (slashLoc
+			&& !slashLoc->path.empty()
+			&& slashLoc->path[slashLoc->path.size() - 1] == '/'
+			&& (!loc || slashLoc->path.size() > loc->path.size())) {
+			if (!isMethodAllowedForLocation(method, withSlash, config))
+				return build_error_response(405, "Error 405\n");
+			return std::string("HTTP/1.1 ") + STATUS301 + "\r\n"
+				+ "Location: " + withSlash + "\r\n"
+				+ "Content-Type: text/plain\r\n"
+				+ "Content-Length: 0\r\n"
+				+ "Connection: close\r\n"
+				+ "\r\n";
+		}
+	}
+
+	if (!isMethodAllowedForLocation(method, requestPath, config))
+		return build_error_response(405, "Error 405\n");
 
 	// handle redirect
 	if (loc && loc->redirectCode != 0) {
@@ -327,7 +467,26 @@ std::string serve_file(const std::string& requestPath, const ServerConfig& confi
 	std::string root  = (loc && !loc->root.empty())  ? loc->root  : "www";
 	std::string index = (loc && !loc->index.empty()) ? loc->index : "index.html";
 
-	std::string filePath = root + (requestPath == "/" ? "/" + index : requestPath);
+	std::string relativePath = requestPath;
+	if (loc && loc->path != "/") {
+		const std::string &locPath = loc->path;
+		if (requestPath.size() >= locPath.size() && requestPath.substr(0, locPath.size()) == locPath) {
+			relativePath = requestPath.substr(locPath.size());
+			if (relativePath.empty())
+				relativePath = "/";
+			else if (relativePath[0] != '/')
+				relativePath = "/" + relativePath;
+		}
+	}
+
+	std::string filePath = root + (relativePath == "/" ? "/" + index : relativePath);
+	struct stat st;
+	if (stat(filePath.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) {
+		if (filePath.empty() || filePath[filePath.size() - 1] != '/')
+			filePath += "/";
+		filePath += index;
+	}
+
 	std::ifstream file(filePath.c_str(), std::ios::binary);
 	if (!file.is_open()) {
 		// check config error_pages for 404, then fall back to www/404.html
@@ -366,6 +525,7 @@ std::string build_error_response(int errorCode, const std::string& body) {
 		case 404: statusLine = "HTTP/1.1 " STATUS404 "\r\n"; break;
 		case 405: statusLine = "HTTP/1.1 " STATUS405 "\r\n"; break;
 		case 411: statusLine = "HTTP/1.1 " STATUS411 "\r\n"; break;
+		case 413: statusLine = "HTTP/1.1 " STATUS413 "\r\n"; break;
 		case 505: statusLine = "HTTP/1.1 " STATUS505 "\r\n"; break;
 		default: statusLine = "HTTP/1.1 " STATUS500 "\r\n"; break;
 	}
