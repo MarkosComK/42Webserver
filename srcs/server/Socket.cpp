@@ -6,30 +6,20 @@
 /*   By: carlos-j <carlos-j@student.42porto.com>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/03/02 12:33:10 by pemirand          #+#    #+#             */
-/*   Updated: 2026/03/18 09:37:25 by carlos-j         ###   ########.fr       */
+/*   Updated: 2026/03/18 11:55:29 by carlos-j         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "../includes/Socket.hpp"
 #include "../includes/Request.hpp"
+#include "../includes/Response.hpp"
 #include "../includes/webserv.hpp"
 #include "../includes/Utils.hpp"
-#include <cstring>
-#include <cstdio>
-#include <cstdlib>
-#include <fstream>
-#include <sstream>
-#include <sys/stat.h>
-#include <cctype>
 
 // Forward declarations
-static std::string itoa_int(int n);
-static bool isMethodAllowedForLocation(const std::string &method, const std::string &requestPath, const ServerConfig &config);
-static long getContentLengthHeader(const std::string &rawRequest);
 static bool parseRequestLineMethodPath(const std::string &rawRequest, std::string &outMethod, std::string &outPath);
-static std::string build_ok_response(const std::string &body);
-std::string serve_file(const std::string& method, const std::string& requestPath, const ServerConfig& config);
 
+/* // not needed, the server will always start with a config file
 Socket::Socket(){
 	port_ = 80;
 	// TODO: default config with a "/" location that serves files from current directory
@@ -38,7 +28,7 @@ Socket::Socket(){
  // remove this later and keep jsut the one that takes the ServerConfig ?
 Socket::Socket(int port){
 	port_ = port;
-}
+}*/
 
 Socket::Socket(int port, const ServerConfig &config){
 	port_ = port;
@@ -152,8 +142,7 @@ bool Socket::client_read(size_t id){
 		ssize_t n = recv(client_fd, buf, sizeof(buf), 0);
 		if (n > 0){
 			client.appendBf_in(buf, (size_t)n);
-
-			// detect end-of-headers; enforce a header-only limit
+			// detect end of headers and enforce a limit size of 8KB
 			if (!client.getHeaders_done()) {
 				if (client.getBf_in().find("\r\n\r\n") != std::string::npos)
 					client.setHeaders_done(true);
@@ -169,6 +158,9 @@ bool Socket::client_read(size_t id){
 				if (headersEnd == std::string::npos)
 					continue;
 
+
+				// parser made by carlos-j
+				// ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 				std::string earlyMethod;
 				std::string earlyPath;
 				parseRequestLineMethodPath(buffer, earlyMethod, earlyPath);
@@ -203,20 +195,9 @@ bool Socket::client_read(size_t id){
 					continue;
 
 				std::string rawRequest = buffer.substr(0, totalNeeded);
-				Request request(rawRequest);
-				std::string response;
-				if (!request.isValid()) {
-					int errorCode = request.getErrorCode();
-					std::string errorBody = "Error " + itoa_int(errorCode) + "\n";
-					response = build_error_response(errorCode, errorBody);
-				} else if (request.getMethod() == "POST" && request.getPath() == "/post_body") {
-					if (request.getBody().size() > 100)
-						response = build_error_response(413, "Error 413\n");
-					else
-						response = build_ok_response("POST OK\n");
-				} else {
-					response = serve_file(request.getMethod(), request.getPath(), server_config_);
-				}
+				std::string response = build_response_from_request(rawRequest, server_config_);
+
+				// ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 				client.appendBf_out(response);
 				client.setOut_bytes_sent(0);
@@ -331,72 +312,6 @@ void die(const char *msg){
 	std::exit(1);
 }
 
-// maybe we should move this to the /utils/ folder later?
-static std::string itoa_int(int n){
-    char buf[32];
-    std::snprintf(buf, sizeof(buf), "%d", n);
-    return std::string(buf);
-}
-
-// to be replaced or moved to marsoare's part...
-static std::string mime_type(const std::string& path) {
-	size_t dot = path.rfind('.');
-	if (dot == std::string::npos) return "application/octet-stream";
-	std::string ext = path.substr(dot);
-	if (ext == ".html" || ext == ".htm") return "text/html";
-	if (ext == ".css")  return "text/css";
-	if (ext == ".js")   return "application/javascript";
-	if (ext == ".png")  return "image/png";
-	if (ext == ".jpg" || ext == ".jpeg") return "image/jpeg";
-	if (ext == ".gif")  return "image/gif";
-	if (ext == ".ico")  return "image/x-icon";
-	if (ext == ".txt")  return "text/plain";
-	return "application/octet-stream";
-}
-
-static bool isMethodAllowedForLocation(const std::string &method, const std::string &requestPath, const ServerConfig &config) {
-	const Location *loc = matchLocation(requestPath, config);
-	if (!loc || loc->allowedMethods.empty())
-		return true;
-	for (size_t i = 0; i < loc->allowedMethods.size(); ++i) {
-		if (loc->allowedMethods[i] == method)
-			return true;
-	}
-	return false;
-}
-
-static long getContentLengthHeader(const std::string &rawRequest) {
-	size_t firstLineEnd = rawRequest.find("\r\n");
-	size_t headersEnd = rawRequest.find("\r\n\r\n");
-	if (firstLineEnd == std::string::npos || headersEnd == std::string::npos || headersEnd <= firstLineEnd)
-		return 0;
-
-	std::string headersBlock = rawRequest.substr(firstLineEnd + 2, headersEnd - (firstLineEnd + 2));
-	std::vector<std::string> lines = ftSplit(headersBlock, "\r\n");
-
-	for (size_t i = 0; i < lines.size(); ++i) {
-		size_t colon = lines[i].find(':');
-		if (colon == std::string::npos)
-			continue;
-
-		std::string key = ftTrim(lines[i].substr(0, colon));
-		for (size_t j = 0; j < key.size(); ++j)
-			key[j] = static_cast<char>(std::tolower(static_cast<unsigned char>(key[j])));
-		if (key != "content-length")
-			continue;
-
-		std::string value = ftTrim(lines[i].substr(colon + 1));
-		if (value.empty())
-			return 0;
-		for (size_t j = 0; j < value.size(); ++j) {
-			if (value[j] < '0' || value[j] > '9')
-				return 0;
-		}
-		return std::strtol(value.c_str(), NULL, 10);
-	}
-	return 0;
-}
-
 static bool parseRequestLineMethodPath(const std::string &rawRequest, std::string &outMethod, std::string &outPath) {
 	outMethod.clear();
 	outPath.clear();
@@ -415,124 +330,3 @@ static bool parseRequestLineMethodPath(const std::string &rawRequest, std::strin
 	return true;
 }
 
-static std::string build_ok_response(const std::string &body) {
-	return std::string("HTTP/1.1 ") + STATUS200 + "\r\n"
-		+ "Content-Type: text/plain\r\n"
-		+ "Content-Length: " + itoa_int((int)body.size()) + "\r\n"
-		+ "Connection: close\r\n"
-		+ "\r\n"
-		+ body;
-}
-
-// changed this so it verifies if th method is allowed, as specified in the config file, and also handles redirects. later, this should be replaced by marsoare's work that will handle cgi and autoindex as well.
-std::string serve_file(const std::string& method, const std::string& requestPath, const ServerConfig& config) {
-	const Location *loc = matchLocation(requestPath, config);
-
-	if (requestPath.size() > 1) {
-		std::string withSlash = requestPath + "/";
-		const Location *slashLoc = matchLocation(withSlash, config);
-		if (slashLoc
-			&& !slashLoc->path.empty()
-			&& slashLoc->path[slashLoc->path.size() - 1] == '/'
-			&& (!loc || slashLoc->path.size() > loc->path.size())) {
-			if (!isMethodAllowedForLocation(method, withSlash, config))
-				return build_error_response(405, "Error 405\n");
-			return std::string("HTTP/1.1 ") + STATUS301 + "\r\n"
-				+ "Location: " + withSlash + "\r\n"
-				+ "Content-Type: text/plain\r\n"
-				+ "Content-Length: 0\r\n"
-				+ "Connection: close\r\n"
-				+ "\r\n";
-		}
-	}
-
-	if (!isMethodAllowedForLocation(method, requestPath, config))
-		return build_error_response(405, "Error 405\n");
-
-	// handle redirect
-	if (loc && loc->redirectCode != 0) {
-		std::string body = "<html><body>Redirecting to <a href=\"" + loc->redirect + "\">" + loc->redirect + "</a></body></html>\n";
-		std::string statusLine = "HTTP/1.1 " + itoa_int(loc->redirectCode) + " Redirect";
-		if (loc->redirectCode == 301) statusLine = "HTTP/1.1 " STATUS301;
-		if (loc->redirectCode == 302) statusLine = "HTTP/1.1 " STATUS302;
-		return statusLine + "\r\n"
-			+ "Location: " + loc->redirect + "\r\n"
-			+ "Content-Type: text/html\r\n"
-			+ "Content-Length: " + itoa_int((int)body.size()) + "\r\n"
-			+ "Connection: close\r\n"
-			+ "\r\n" + body;
-	}
-
-	// resolve root and index from matching location, fall back to "www"
-	std::string root  = (loc && !loc->root.empty())  ? loc->root  : "www";
-	std::string index = (loc && !loc->index.empty()) ? loc->index : "index.html";
-
-	std::string relativePath = requestPath;
-	if (loc && loc->path != "/") {
-		const std::string &locPath = loc->path;
-		if (requestPath.size() >= locPath.size() && requestPath.substr(0, locPath.size()) == locPath) {
-			relativePath = requestPath.substr(locPath.size());
-			if (relativePath.empty())
-				relativePath = "/";
-			else if (relativePath[0] != '/')
-				relativePath = "/" + relativePath;
-		}
-	}
-
-	std::string filePath = root + (relativePath == "/" ? "/" + index : relativePath);
-	struct stat st;
-	if (stat(filePath.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) {
-		if (filePath.empty() || filePath[filePath.size() - 1] != '/')
-			filePath += "/";
-		filePath += index;
-	}
-
-	std::ifstream file(filePath.c_str(), std::ios::binary);
-	if (!file.is_open()) {
-		// check config error_pages for 404, then fall back to www/404.html
-		std::string body404;
-		std::map<int, std::string>::const_iterator ep = config.errorPages.find(404);
-		if (ep != config.errorPages.end()) {
-			std::ifstream ef((root + ep->second).c_str(), std::ios::binary);
-			if (ef.is_open()) { std::ostringstream ss; ss << ef.rdbuf(); body404 = ss.str(); }
-		}
-		if (body404.empty()) {
-			std::ifstream page404("www/404.html", std::ios::binary);
-			if (page404.is_open()) { std::ostringstream ss; ss << page404.rdbuf(); body404 = ss.str(); }
-			else body404 = "<h1>404 Not Found</h1>\n";
-		}
-		return std::string("HTTP/1.1 ") + STATUS404 + "\r\n"
-			+ "Content-Type: text/html\r\n"
-			+ "Content-Length: " + itoa_int((int)body404.size()) + "\r\n"
-			+ "Connection: close\r\n"
-			+ "\r\n" + body404;
-	}
-	std::ostringstream ss;
-	ss << file.rdbuf();
-	std::string body = ss.str();
-	return std::string("HTTP/1.1 ") + STATUS200 + "\r\n"
-		+ "Content-Type: " + mime_type(filePath) + "\r\n"
-		+ "Content-Length: " + itoa_int((int)body.size()) + "\r\n"
-		+ "Connection: close\r\n"
-		+ "\r\n" + body;
-}
-
-// hardcoded response, replace it by marsoare's work later...
-std::string build_error_response(int errorCode, const std::string& body) {
-	std::string statusLine;
-	switch (errorCode) {
-		case 400: statusLine = "HTTP/1.1 " STATUS400 "\r\n"; break;
-		case 404: statusLine = "HTTP/1.1 " STATUS404 "\r\n"; break;
-		case 405: statusLine = "HTTP/1.1 " STATUS405 "\r\n"; break;
-		case 411: statusLine = "HTTP/1.1 " STATUS411 "\r\n"; break;
-		case 413: statusLine = "HTTP/1.1 " STATUS413 "\r\n"; break;
-		case 505: statusLine = "HTTP/1.1 " STATUS505 "\r\n"; break;
-		default: statusLine = "HTTP/1.1 " STATUS500 "\r\n"; break;
-	}
-	return statusLine +
-		"Content-Type: text/plain\r\n" +
-		"Content-Length: " + itoa_int((int)body.size()) + "\r\n" +
-		"Connection: close\r\n" +
-		"\r\n" +
-		body;
-}

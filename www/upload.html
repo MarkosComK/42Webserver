@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Upload — 42 Webserv</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 60px auto; text-align: center; }
+    a { color: #0070f3; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-top: 20px; text-align: left; }
+    .row { display: flex; gap: 8px; align-items: center; }
+    input[type="text"] { flex: 1; padding: 8px; }
+    button { padding: 8px 12px; cursor: pointer; }
+    .status { margin-top: 10px; font-family: monospace; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Upload</h1>
+  <p>This page allows you to upload and delete files from the server.</p>
+
+  <div class="card">
+    <h3>Upload file</h3>
+    <div class="row">
+      <input id="fileInput" type="file" />
+      <button id="uploadBtn" type="button">Upload</button>
+    </div>
+    <div id="uploadStatus" class="status"></div>
+  </div>
+
+  <div class="card">
+    <h3>Delete file</h3>
+    <div class="row">
+      <input id="deleteName" type="text" placeholder="filename.ext" />
+      <button id="deleteBtn" type="button">Delete</button>
+    </div>
+    <div id="deleteStatus" class="status"></div>
+  </div>
+
+  <p><a href="/">Back to Home</a></p>
+
+  <script>
+    function setStatus(id, message) {
+      document.getElementById(id).textContent = message;
+    }
+
+    function toUploadRoutePath(rawValue) {
+      var value = rawValue.trim();
+      if (!value) return '';
+
+      if (value.indexOf('/upload/') === 0) value = value.substring(8);
+      else if (value.indexOf('upload/') === 0) value = value.substring(7);
+
+      value = value.replace(/^\/+/, '');
+
+      return value
+        .split('/')
+        .filter(function (part) { return part.length > 0; })
+        .map(function (part) { return encodeURIComponent(part); })
+        .join('/');
+    }
+
+    document.getElementById('uploadBtn').addEventListener('click', function () {
+      var input = document.getElementById('fileInput');
+      if (!input.files || !input.files.length) {
+        setStatus('uploadStatus', 'Select a file first.');
+        return;
+      }
+
+      var file = input.files[0];
+      var uploadPath = toUploadRoutePath(file.name);
+      fetch('/upload/' + uploadPath, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: file
+      })
+      .then(function (res) {
+        return res.text().then(function (text) {
+          setStatus('uploadStatus', 'HTTP ' + res.status + '\n' + text);
+        });
+      })
+      .catch(function (err) {
+        setStatus('uploadStatus', 'Upload failed: ' + err.message);
+      });
+    });
+
+    document.getElementById('deleteBtn').addEventListener('click', function () {
+      var name = document.getElementById('deleteName').value;
+      var deletePath = toUploadRoutePath(name);
+      if (!deletePath) {
+        setStatus('deleteStatus', 'Type a filename to delete.');
+        return;
+      }
+
+      fetch('/upload/' + deletePath, { method: 'DELETE' })
+      .then(function (res) {
+        return res.text().then(function (text) {
+          setStatus('deleteStatus', 'HTTP ' + res.status + '\n' + text);
+        });
+      })
+      .catch(function (err) {
+        setStatus('deleteStatus', 'Delete failed: ' + err.message);
+      });
+    });
+  </script>
+</body>
+</html>

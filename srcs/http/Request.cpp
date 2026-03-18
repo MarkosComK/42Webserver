@@ -4,10 +4,12 @@
 #include <iostream>
 
 // delete later...
-void testRequestParsing() {
+void testRequestParsing()
+{
 	std::cout << "===================================== Parsing HTTP Request tests... =====================================" << std::endl;
 
-	struct TestCase {
+	struct TestCase
+	{
 		const char *name;
 		const char *raw;
 		bool expectedValid;
@@ -30,10 +32,10 @@ void testRequestParsing() {
 		{"Valid POST with empty body (200)", "POST /submit HTTP/1.0\r\nHost: example.com\r\nContent-Length: 0\r\n\r\n", true, 200},
 		{"Invalid request line (400)", "GET/index.htmlHTTP/1.0\r\n\n\r\n", false, 400},
 		{"Query string parsing (200)", "GET /search?q=webserver&lang=en HTTP/1.0\r\nHost: example.com\r\n\r\n", true, 200},
-		{"GET with a full page (200)", "GET /index.html HTTP/1.0\r\nHost: example.com\r\n\r\n<!DOCTYPE html><html><head><title>Test</title></head><body><h1>Hello, World!</h1></body></html>", true, 200}
-	};
+		{"GET with a full page (200)", "GET /index.html HTTP/1.0\r\nHost: example.com\r\n\r\n<!DOCTYPE html><html><head><title>Test</title></head><body><h1>Hello, World!</h1></body></html>", true, 200}};
 
-	for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); ++i) {
+	for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); ++i)
+	{
 		Request request(tests[i].raw);
 
 		std::cout << "--- " << tests[i].name << " ---" << std::endl;
@@ -44,35 +46,40 @@ void testRequestParsing() {
 
 		std::cout << "Headers:" << std::endl;
 		const std::map<std::string, std::string> &headers = request.getHeaders();
-		for (std::map<std::string, std::string>::const_iterator it = headers.begin(); it != headers.end(); ++it) {
+		for (std::map<std::string, std::string>::const_iterator it = headers.begin(); it != headers.end(); ++it)
+		{
 			std::cout << "  '" << it->first << "': '" << it->second << "'" << std::endl;
 		}
 		std::cout << "Body: '" << request.getBody() << "'" << std::endl;
 		std::cout << "Valid: " << (request.isValid() ? "true" : "false") << " (expected "
-		          << (tests[i].expectedValid ? "true" : "false") << ")" << std::endl;
+				  << (tests[i].expectedValid ? "true" : "false") << ")" << std::endl;
 		std::cout << "Error code: " << request.getErrorCode() << " (expected " << tests[i].expectedCode << ")"
-		          << std::endl;
+				  << std::endl;
 		std::cout << std::endl;
 	}
 }
 
-Request::Request(const std::string &raw) : valid(true), errorCode(200) {
+Request::Request(const std::string &raw) : valid(true), errorCode(200)
+{
 	if (!parseRequestLine(raw) || !parseMethod() || !parsePath() || !parseVersion() || !parseHeaders(raw) ||
-	    !parseBody(raw))
+		!parseBody(raw))
 		return;
 }
 
 // splits the first line into method, path, and version. Returns false if the format is invalid.
-bool Request::parseRequestLine(const std::string &raw) {
+bool Request::parseRequestLine(const std::string &raw)
+{
 	size_t lineEnd = raw.find("\r\n");
-	if (lineEnd == std::string::npos) {
+	if (lineEnd == std::string::npos)
+	{
 		errorCode = 400;
 		return valid = false;
 	}
 
 	std::string requestLine = raw.substr(0, lineEnd);
 	std::vector<std::string> parts = splitByWhitespace(requestLine);
-	if (parts.size() != 3) {
+	if (parts.size() != 3)
+	{
 		errorCode = 400;
 		return valid = false;
 	}
@@ -84,23 +91,28 @@ bool Request::parseRequestLine(const std::string &raw) {
 }
 
 // "You need at least the GET, POST, and DELETE methods."
-bool Request::parseMethod() {
-	if (_method != "GET" && _method != "POST" && _method != "DELETE") {
+bool Request::parseMethod()
+{
+	if (_method != "GET" && _method != "POST" && _method != "DELETE")
+	{
 		errorCode = 405; // Method Not Allowed
 		return valid = false;
 	}
 	return true;
 }
 
-bool Request::parsePath() {
-	if (_path.empty() || _path[0] != '/') {
+bool Request::parsePath()
+{
+	if (_path.empty() || _path[0] != '/')
+	{
 		errorCode = 400;
 		return valid = false;
 	}
 
 	_query.clear();
 	size_t queryPos = _path.find('?');
-	if (queryPos != std::string::npos) {
+	if (queryPos != std::string::npos)
+	{
 		_query = _path.substr(queryPos + 1);
 		_path = _path.substr(0, queryPos);
 		if (_path.empty())
@@ -109,8 +121,10 @@ bool Request::parsePath() {
 	return true;
 }
 
-bool Request::parseVersion() {
-	if (_version != "HTTP/1.0" && _version != "HTTP/1.1") {
+bool Request::parseVersion()
+{
+	if (_version != "HTTP/1.0" && _version != "HTTP/1.1")
+	{
 		errorCode = 505;
 		return valid = false;
 	}
@@ -121,15 +135,18 @@ bool Request::parseVersion() {
 //	- "Transfer-Encoding: chunked" body decoding - CGI/POST with large bodies (browsers use it when they don't know the body size upfront)
 //	- "Expect: 100-continue" header - large file uploads (client asks "are you ready?" before sending the body)
 
-bool Request::parseHeaders(const std::string &raw) {
+bool Request::parseHeaders(const std::string &raw)
+{
 	size_t firstLineEnd = raw.find("\r\n");
-	if (firstLineEnd == std::string::npos) {
+	if (firstLineEnd == std::string::npos)
+	{
 		errorCode = 400;
 		return valid = false;
 	}
 	size_t headersStart = firstLineEnd + 2; // skip the first line and the \r\n
 	size_t headersEnd = raw.find("\r\n\r\n");
-	if (headersEnd == std::string::npos || headersEnd < headersStart) {
+	if (headersEnd == std::string::npos || headersEnd < headersStart)
+	{
 		errorCode = 400;
 		return valid = false;
 	}
@@ -138,11 +155,13 @@ bool Request::parseHeaders(const std::string &raw) {
 		return true;
 
 	std::vector<std::string> lines = ftSplit(headersStr, "\r\n"); // split headers into lines
-	for (size_t i = 0; i < lines.size(); ++i) {
+	for (size_t i = 0; i < lines.size(); ++i)
+	{
 		if (lines[i].empty())
 			continue;
 		size_t colonPos = lines[i].find(':');
-		if (colonPos == std::string::npos) {
+		if (colonPos == std::string::npos)
+		{
 			errorCode = 400;
 			return valid = false;
 		}
@@ -150,34 +169,41 @@ bool Request::parseHeaders(const std::string &raw) {
 		std::string value = lines[i].substr(colonPos + 1);
 		key = ftTrim(key);
 		value = ftTrim(value);
-		if (key.empty()) {
+		if (key.empty())
+		{
 			errorCode = 400;
 			return valid = false;
 		}
-		for (size_t i = 0; i < key.size(); ++i) {
+		for (size_t i = 0; i < key.size(); ++i)
+		{
 			key[i] = static_cast<char>(std::tolower(static_cast<unsigned char>(key[i])));
 		}
 		_headers[key] = value;
 	}
 	// HTTP/1.1 requires Host header (RFC 7230 section 5.4)
-	if (_version == "HTTP/1.1" && _headers.find("host") == _headers.end()) {
+	if (_version == "HTTP/1.1" && _headers.find("host") == _headers.end())
+	{
 		errorCode = 400;
 		return valid = false;
 	}
 	return true;
 }
 
-bool Request::parseBody(const std::string &raw) {
+bool Request::parseBody(const std::string &raw)
+{
 	size_t bodyStart = raw.find("\r\n\r\n");
-	if (bodyStart == std::string::npos) { // no body is still valid
+	if (bodyStart == std::string::npos)
+	{ // no body is still valid
 		errorCode = 400;
 		return valid = false;
-	}
+	} // verify is this is necessary
 
 	std::string body = raw.substr(bodyStart + 4);
 	std::map<std::string, std::string>::const_iterator it = _headers.find("content-length");
-	if (it == _headers.end()) {
-		if (_method == "POST") { // POST requests must have a body, so Content-Length is required
+	if (it == _headers.end())
+	{
+		if (_method == "POST")
+		{ // POST requests must have a body, so Content-Length is required
 			errorCode = 411;
 			return valid = false;
 		}
@@ -186,25 +212,30 @@ bool Request::parseBody(const std::string &raw) {
 	}
 
 	const std::string &lengthValue = it->second;
-	if (lengthValue.empty()) { // Content-Length header is present but empty
+	if (lengthValue.empty())
+	{ // Content-Length header is present but empty
 		errorCode = 400;
 		return valid = false;
 	}
-	for (size_t i = 0; i < lengthValue.size(); ++i) {
-		if (lengthValue[i] < '0' || lengthValue[i] > '9') {
+	for (size_t i = 0; i < lengthValue.size(); ++i)
+	{
+		if (lengthValue[i] < '0' || lengthValue[i] > '9')
+		{
 			errorCode = 400;
 			return valid = false;
 		}
 	}
 
 	long contentLength =
-	    std::strtol(lengthValue.c_str(), NULL, 10); // strtol returns 0 on failure, but we already checked for non-digit
-	                                                // characters, so 0 is valid if the header is "Content-Length: 0"
-	if (contentLength < 0) {
+		std::strtol(lengthValue.c_str(), NULL, 10); // strtol returns 0 on failure, but we already checked for non-digit
+													// characters, so 0 is valid if the header is "Content-Length: 0"
+	if (contentLength < 0)
+	{
 		errorCode = 400;
 		return valid = false;
 	}
-	if (static_cast<size_t>(contentLength) != body.size()) {
+	if (static_cast<size_t>(contentLength) != body.size())
+	{
 		errorCode = 400;
 		return valid = false;
 	}
@@ -216,27 +247,35 @@ bool Request::parseBody(const std::string &raw) {
 // * URI decoding for path and query string (e.g. %20 -> space, %2F -> /)
 // ...
 
-std::string Request::getMethod() const {
+std::string Request::getMethod() const
+{
 	return _method;
 }
-std::string Request::getPath() const {
+std::string Request::getPath() const
+{
 	return _path;
 }
-std::string Request::getQuery() const {
+std::string Request::getQuery() const
+{
 	return _query;
 }
-std::string Request::getVersion() const {
+std::string Request::getVersion() const
+{
 	return _version;
 }
-std::map<std::string, std::string> Request::getHeaders() const {
+std::map<std::string, std::string> Request::getHeaders() const
+{
 	return _headers;
 }
-std::string Request::getBody() const {
+std::string Request::getBody() const
+{
 	return _body;
 }
-bool Request::isValid() const {
+bool Request::isValid() const
+{
 	return valid;
 }
-int Request::getErrorCode() const {
+int Request::getErrorCode() const
+{
 	return errorCode;
 }

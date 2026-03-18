@@ -23,6 +23,10 @@
 # include <vector>
 # include <map>
 # include <netinet/in.h>
+#include <cstring>
+#include <cstdio>
+#include <cstdlib>
+#include <cctype>
 # include "Client.hpp"
 # include "Config.hpp"
 
@@ -35,8 +39,8 @@ class Socket{
 		std::map<int, Client>		clients_;
 		ServerConfig				server_config_;
 	public:
-		Socket();
-		Socket(int port); // remove this later and keep jsut the one that takes the ServerConfig ?
+		//Socket();
+		//Socket(int port); // remove this later and keep jsut the one that takes the ServerConfig ?
 		Socket(int port, const ServerConfig &config);
 		Socket(const Socket &other);
 		Socket &operator=(const Socket &other);
@@ -55,7 +59,5 @@ class Socket{
 };
 
 void die(const char *msg);
-
-std::string build_error_response(int errorCode, const std::string& body);
 
 #endif

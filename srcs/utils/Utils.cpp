@@ -1,6 +1,9 @@
 #include "Utils.hpp"
 #include <sstream>
 #include <vector>
+#include <cstdio>
+#include <cctype>
+#include <cstdlib>
 
 std::vector<std::string> ftSplit(const std::string &s, const std::string &delimiter) {
 	std::vector<std::string> tokens;
@@ -64,4 +67,47 @@ const Location *matchLocation(const std::string &path, const ServerConfig &serve
 		}
 	}
 	return best;
+}
+
+bool isMethodAllowedForLocation(const std::string &method, const std::string &requestPath, const ServerConfig &config) {
+	const Location *loc = matchLocation(requestPath, config);
+	if (!loc || loc->allowedMethods.empty())
+		return true;
+	for (size_t i = 0; i < loc->allowedMethods.size(); ++i) {
+		if (loc->allowedMethods[i] == method)
+			return true;
+	}
+	return false;
+}
+
+long getContentLengthHeader(const std::string &rawRequest) {
+	size_t firstLineEnd = rawRequest.find("\r\n");
+	size_t headersEnd = rawRequest.find("\r\n\r\n");
+	if (firstLineEnd == std::string::npos || headersEnd == std::string::npos || headersEnd <= firstLineEnd)
+		return 0;
+
+	std::string headersBlock = rawRequest.substr(firstLineEnd + 2, headersEnd - (firstLineEnd + 2));
+	std::vector<std::string> lines = ftSplit(headersBlock, "\r\n");
+
+	for (size_t i = 0; i < lines.size(); ++i) {
+		size_t colon = lines[i].find(':');
+		if (colon == std::string::npos)
+			continue;
+
+		std::string key = ftTrim(lines[i].substr(0, colon));
+		for (size_t j = 0; j < key.size(); ++j)
+			key[j] = static_cast<char>(std::tolower(static_cast<unsigned char>(key[j])));
+		if (key != "content-length")
+			continue;
+
+		std::string value = ftTrim(lines[i].substr(colon + 1));
+		if (value.empty())
+			return 0;
+		for (size_t j = 0; j < value.size(); ++j) {
+			if (value[j] < '0' || value[j] > '9')
+				return 0;
+		}
+		return std::strtol(value.c_str(), NULL, 10);
+	}
+	return 0;
 }
