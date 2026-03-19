@@ -6,7 +6,7 @@
 /*   By: pemirand <pemirand@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/03/02 12:33:10 by pemirand          #+#    #+#             */
-/*   Updated: 2026/03/04 16:32:29 by pemirand         ###   ########.fr       */
+/*   Updated: 2026/03/19 08:40:58 by pemirand         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -24,7 +24,6 @@ Socket::Socket(const Socket &other){
 	port_ = other.port_;
 	listen_fd_ = other.listen_fd_;
 	socket_addr_ = other.socket_addr_;
-	poll_fds_ = other.poll_fds_;
 	clients_ = other.clients_;
 }
 
@@ -34,7 +33,6 @@ Socket &Socket::operator=(const Socket &other){
 		port_ = other.port_;
 		listen_fd_ = other.listen_fd_;
 		socket_addr_ = other.socket_addr_;
-		poll_fds_ = other.poll_fds_;
 		clients_ = other.clients_;
 	}
 	return *this;
