@@ -30,7 +30,6 @@ class Socket{
 		int							port_;
 		int							listen_fd_;
 		sockaddr_in					socket_addr_;
-		std::vector<pollfd>			poll_fds_;
 		std::map<int, Client>		clients_;
 	public:
 		Socket();
