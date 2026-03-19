@@ -22,6 +22,8 @@
 #define STATUS502 "502 Bad Gateway"
 #define STATUS503 "503 Service Unavailable"
 
+#define VERSION "HTTP/1.1 "
+
 #include "Config.hpp"
 #include "Request.hpp"
 #include "Response.hpp"

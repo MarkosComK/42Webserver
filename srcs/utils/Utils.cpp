@@ -42,6 +42,12 @@ std::string ftTrim(const std::string &s) {
 	return s.substr(start, end - start + 1);
 }
 
+std::string itoa_int(int n){
+	char buf[32];
+	std::snprintf(buf, sizeof(buf), "%d", n);
+	return std::string(buf);
+}
+
 // Longest prefix match — same rules as nginx.
 // Returns the Location whose path is the longest prefix of the request path.
 // Returns NULL if no location matches (shouldn't happen if config has a "/" catch-all).
@@ -73,6 +79,13 @@ bool isMethodAllowedForLocation(const std::string &method, const std::string &re
 	const Location *loc = matchLocation(requestPath, config);
 	if (!loc || loc->allowedMethods.empty())
 		return true;
+	if (method == "HEAD") {
+		for (size_t i = 0; i < loc->allowedMethods.size(); ++i) {
+			if (loc->allowedMethods[i] == "HEAD" || loc->allowedMethods[i] == "GET")
+				return true;
+		}
+		return false;
+	}
 	for (size_t i = 0; i < loc->allowedMethods.size(); ++i) {
 		if (loc->allowedMethods[i] == method)
 			return true;

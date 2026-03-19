@@ -24,7 +24,9 @@ void testConfigParsing(const std::string &configPath) {
 			std::cout << "  listen pairs (" << srv.listens.size() << "):" << std::endl;
 			for (size_t l = 0; l < srv.listens.size(); ++l)
 				std::cout << "    " << srv.listens[l].host << ":" << srv.listens[l].port << std::endl;
-			std::cout << "  server_name:        " << (srv.serverName.empty() ? "(none)" : srv.serverName) << std::endl;
+			//std::cout << "  server_name:        " << (srv.serverName.empty() ? "(none)" : srv.serverName) << std::endl;
+			if (!srv.root.empty())
+				std::cout << "  root:               " << srv.root << std::endl;
 			std::cout << "  client_max_body:    " << srv.clientMaxBodySize << " bytes" << std::endl;
 
 			if (!srv.errorPages.empty()) {
@@ -95,6 +97,7 @@ std::string ConfigParser::readFile(const std::string &filePath) {
 	return ss.str();
 }
 
+// first tokenization of the config file; will split by whitespaces, '{', '}', ';', and ignore comments after a '#'
 std::vector<std::string> ConfigParser::tokenize(const std::string &content) {
 	std::vector<std::string> tokens;
 	std::string current;
@@ -104,7 +107,7 @@ std::vector<std::string> ConfigParser::tokenize(const std::string &content) {
 
 		if (c == '#') { // skip comment until end of line
 			while (i < content.size() && content[i] != '\n')
-				++i;
+				i++;
 			continue;
 		}
 		if (c == '{' || c == '}' || c == ';') {
@@ -127,14 +130,15 @@ std::vector<std::string> ConfigParser::tokenize(const std::string &content) {
 	return tokens;
 }
 
+// the main parse that will find server blocks
 void ConfigParser::parse(std::vector<std::string> &tokens) {
 	size_t i = 0;
 	while (i < tokens.size()) {
 		if (tokens[i] == "server") {
-			++i;
+			i++;
 			if (i >= tokens.size() || tokens[i] != "{")
 				throw ParseException("Expected '{' after 'server'");
-			++i;
+			i++;
 			_servers.push_back(parseServerBlock(tokens, i));
 		} else {
 			throw ParseException("Unexpected token outside server block: " + tokens[i]);
@@ -144,6 +148,7 @@ void ConfigParser::parse(std::vector<std::string> &tokens) {
 		throw ParseException("Config file has no server blocks");
 }
 
+// parse of the server block that will initialize the struct with the directives 'listen', 'error_page', 'client_max_body_size', 'root', and 'location'
 ServerConfig ConfigParser::parseServerBlock(std::vector<std::string> &tokens, size_t &i) {
 	ServerConfig server;
 
@@ -151,54 +156,54 @@ ServerConfig ConfigParser::parseServerBlock(std::vector<std::string> &tokens, si
 		const std::string &directive = tokens[i];
 
 		if (directive == "listen") {
-			++i;
+			i++;
 			if (i >= tokens.size() || tokens[i] == ";")
 				throw ParseException("'listen' requires a value");
 			server.listens.push_back(parseHost(tokens[i]));
-			++i;
+			i++;
 			if (i >= tokens.size() || tokens[i] != ";")
 				throw ParseException("Expected ';' after 'listen' value");
-			++i;
-
-		} else if (directive == "server_name") {
-			++i;
-			if (i >= tokens.size() || tokens[i] == ";")
-				throw ParseException("'server_name' requires a value");
-			server.serverName = tokens[i++];
-			if (i >= tokens.size() || tokens[i] != ";")
-				throw ParseException("Expected ';' after 'server_name' value");
-			++i;
+			i++;
 
 		} else if (directive == "error_page") {
-			++i;
+			i++;
 			if (i + 1 >= tokens.size())
 				throw ParseException("'error_page' requires a code and a path");
 			int code = std::atoi(tokens[i].c_str());
 			if (code <= 0)
 				throw ParseException("Invalid error_page code: " + tokens[i]);
-			++i;
+			i++;
 			server.errorPages[code] = tokens[i++];
 			if (i >= tokens.size() || tokens[i] != ";")
 				throw ParseException("Expected ';' after 'error_page' value");
-			++i;
+			i++;
 
 		} else if (directive == "client_max_body_size") {
-			++i;
+			i++;
 			if (i >= tokens.size() || tokens[i] == ";")
 				throw ParseException("'client_max_body_size' requires a value");
 			server.clientMaxBodySize = parseSize(tokens[i++]);
 			if (i >= tokens.size() || tokens[i] != ";")
 				throw ParseException("Expected ';' after 'client_max_body_size' value");
-			++i;
+			i++;
+
+		} else if (directive == "root") {
+			i++;
+			if (i >= tokens.size() || tokens[i] == ";")
+				throw ParseException("'root' requires a value");
+			server.root = tokens[i++];
+			if (i >= tokens.size() || tokens[i] != ";")
+				throw ParseException("Expected ';' after 'root' value");
+			i++;
 
 		} else if (directive == "location") {
-			++i;
+			i++;
 			if (i >= tokens.size())
 				throw ParseException("'location' requires a path");
 			std::string path = tokens[i++];
 			if (i >= tokens.size() || tokens[i] != "{")
 				throw ParseException("Expected '{' after location path '" + path + "'");
-			++i;
+			i++;
 			Location loc = parseLocationBlock(tokens, i);
 			loc.path = path;
 			server.locations.push_back(loc);
@@ -210,9 +215,16 @@ ServerConfig ConfigParser::parseServerBlock(std::vector<std::string> &tokens, si
 
 	if (i >= tokens.size())
 		throw ParseException("Unexpected end of file in server block");
-	++i; // consume '}'
+	i++; // consume '}'
 
-		if (server.listens.empty())
+	if (!server.root.empty()) {
+		for (size_t idx = 0; idx < server.locations.size(); ++idx) {
+			if (server.locations[idx].root.empty())
+				server.locations[idx].root = server.root;
+		}
+	}
+
+	if (server.listens.empty())
 		throw ParseException("Server block is missing 'listen' directive");
 	return server;
 }
@@ -224,33 +236,33 @@ Location ConfigParser::parseLocationBlock(std::vector<std::string> &tokens, size
 		const std::string &directive = tokens[i];
 
 		if (directive == "methods") {
-			++i;
+			i++;
 			while (i < tokens.size() && tokens[i] != ";")
 				loc.allowedMethods.push_back(tokens[i++]);
 			if (i >= tokens.size() || tokens[i] != ";")
 				throw ParseException("Expected ';' after 'methods' values");
-			++i;
+			i++;
 
 		} else if (directive == "root") {
-			++i;
+			i++;
 			if (i >= tokens.size() || tokens[i] == ";")
 				throw ParseException("'root' requires a value");
 			loc.root = tokens[i++];
 			if (i >= tokens.size() || tokens[i] != ";")
 				throw ParseException("Expected ';' after 'root' value");
-			++i;
+			i++;
 
 		} else if (directive == "index") {
-			++i;
+			i++;
 			if (i >= tokens.size() || tokens[i] == ";")
 				throw ParseException("'index' requires a value");
 			loc.index = tokens[i++];
 			if (i >= tokens.size() || tokens[i] != ";")
 				throw ParseException("Expected ';' after 'index' value");
-			++i;
+			i++;
 
 		} else if (directive == "autoindex") {
-			++i;
+			i++;
 			if (i >= tokens.size() || tokens[i] == ";")
 				throw ParseException("'autoindex' requires 'on' or 'off'");
 			const std::string &val = tokens[i++];
@@ -262,32 +274,32 @@ Location ConfigParser::parseLocationBlock(std::vector<std::string> &tokens, size
 				throw ParseException("'autoindex' value must be 'on' or 'off', got: " + val);
 			if (i >= tokens.size() || tokens[i] != ";")
 				throw ParseException("Expected ';' after 'autoindex' value");
-			++i;
+			i++;
 
 		} else if (directive == "upload_store") {
-			++i;
+			i++;
 			if (i >= tokens.size() || tokens[i] == ";")
 				throw ParseException("'upload_store' requires a value");
 			loc.uploadDir = tokens[i++];
 			if (i >= tokens.size() || tokens[i] != ";")
 				throw ParseException("Expected ';' after 'upload_store' value");
-			++i;
+			i++;
 
 		} else if (directive == "return") {
-			++i;
+			i++;
 			if (i + 1 >= tokens.size())
 				throw ParseException("'return' requires a code and a URL");
 			loc.redirectCode = std::atoi(tokens[i].c_str());
 			if (loc.redirectCode <= 0)
 				throw ParseException("Invalid redirect code: " + tokens[i]);
-			++i;
+			i++;
 			loc.redirect = tokens[i++];
 			if (i >= tokens.size() || tokens[i] != ";")
 				throw ParseException("Expected ';' after 'return' value");
-			++i;
+			i++;
 
 		} else if (directive == "cgi") {
-			++i;
+			i++;
 			if (i + 1 >= tokens.size())
 				throw ParseException("'cgi' requires an extension and an interpreter path");
 			std::string ext = tokens[i++];
@@ -295,7 +307,7 @@ Location ConfigParser::parseLocationBlock(std::vector<std::string> &tokens, size
 			loc.cgi[ext] = interpreter;
 			if (i >= tokens.size() || tokens[i] != ";")
 				throw ParseException("Expected ';' after 'cgi' value");
-			++i;
+			i++;
 
 		} else {
 			throw ParseException("Unknown location directive: " + directive);
@@ -304,7 +316,7 @@ Location ConfigParser::parseLocationBlock(std::vector<std::string> &tokens, size
 
 	if (i >= tokens.size())
 		throw ParseException("Unexpected end of file in location block");
-	++i; // consume '}'
+	i++; // consume '}'
 	return loc;
 }
 
@@ -343,8 +355,8 @@ ListenPair ConfigParser::parseHost(const std::string &value) {
 		host = value.substr(0, colon);
 		port = std::atoi(value.substr(colon + 1).c_str());
 	} else if (value.find('.') != std::string::npos) {
-		// looks like an IP address but no port was provided
-		throw ParseException("'listen' with an IP address requires a port (e.g., 127.0.0.1:8080): " + value);
+		host = value;
+		port = 80; // no port specified, default to 80 (nginx behavior)
 	} else {
 		host = "0.0.0.0";
 		port = std::atoi(value.c_str());

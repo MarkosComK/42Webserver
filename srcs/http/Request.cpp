@@ -90,10 +90,10 @@ bool Request::parseRequestLine(const std::string &raw)
 	return true;
 }
 
-// "You need at least the GET, POST, and DELETE methods."
+// "You need at least the GET, POST, and DELETE methods.", we also support HEAD
 bool Request::parseMethod()
 {
-	if (_method != "GET" && _method != "POST" && _method != "DELETE")
+	if (_method != "GET" && _method != "HEAD" && _method != "POST" && _method != "DELETE")
 	{
 		errorCode = 405; // Method Not Allowed
 		return valid = false;
