@@ -6,12 +6,13 @@
 /*   By: pemirand <pemirand@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/02/12 20:21:48 by marsoare          #+#    #+#             */
-/*   Updated: 2026/03/19 12:38:20 by pemirand         ###   ########.fr       */
+/*   Updated: 2026/03/19 16:20:52 by pemirand         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 //#include "includes/Socket.hpp"
 #include "includes/ConfigParser.hpp"
+#include "includes/Server.hpp"
 
 int main() {
 
@@ -19,7 +20,7 @@ int main() {
 	ListenPair pair2("127.0.0.1", 8081);
 	ListenPair pair3("0.0.0.0", 8082);
 	ListenPair pair4("127.0.0.1", 8083);
-	ListenPair pair5("127.0.0.2", 8083);
+	ListenPair pair5("127.0.0.1", 8080);
 
 	std::vector<ListenPair> listens1;
 	listens1.push_back(pair1);
@@ -47,16 +48,17 @@ int main() {
 
 	parser.printConfig();
 
-	// int port = 80;
-	// if (argc >= 2)
-	// 	port = atoi(argv[1]);
-	// Socket socket(port);
-	// socket.init_socket();
-	// socket.bind_socket();
-	// socket.listen_socket();
-	// socket.start_poll();
-	// socket.run();
-	// socket.close_socket();
+	Server server;
+	for (size_t i = 0; i < parser.getServers().size(); ++i)
+	{
+		const ServerConfig &conf = parser.getServers()[i];
+		for (size_t j = 0; j < conf.listens.size(); ++j)
+		{
+			server.addSocket(conf.listens[j], Socket(conf.listens[j].port, conf.listens[j].host));
+		}
+	}
+	server.run();
+	server.closeAll();
 	return 0;
 }
 

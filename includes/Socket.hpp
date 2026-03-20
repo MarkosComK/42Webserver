@@ -13,6 +13,7 @@
 #ifndef SOCKET_HPP
 # define SOCKET_HPP
 
+#include <string>
 # include <unistd.h>
 # include <iostream>
 # include <fcntl.h>
@@ -23,17 +24,18 @@
 # include <vector>
 # include <map>
 # include <netinet/in.h>
-# include "Client.hpp"
+#include <sys/socket.h>
 
 class Socket{
 	private:
 		int							port_;
+		std::string					host_;
 		int							listen_fd_;
 		sockaddr_in					socket_addr_;
-		std::map<int, Client>		clients_;
+		//add server block
 	public:
 		Socket();
-		Socket(int port);
+		Socket(int port, std::string host);
 		Socket(const Socket &other);
 		Socket &operator=(const Socket &other);
 		~Socket();
@@ -41,13 +43,11 @@ class Socket{
 		void init_socket();
 		void bind_socket();
 		void listen_socket();
-		void start_poll();
 		void close_socket();
-		void close_client(size_t id);
-		void run();
-		void accept_new_clients();
-		bool client_read(size_t id);
-		bool client_write(size_t id);
+		int getPort() const;
+		std::string getHost() const;
+		int getListen_fd() const;
+		sockaddr_in getSocket_addr() const;
 };
 
 void die(const char *msg);

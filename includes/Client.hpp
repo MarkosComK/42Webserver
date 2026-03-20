@@ -6,13 +6,14 @@
 /*   By: pemirand <pemirand@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/03/03 13:52:08 by pemirand          #+#    #+#             */
-/*   Updated: 2026/03/04 14:39:54 by pemirand         ###   ########.fr       */
+/*   Updated: 2026/03/19 14:42:02 by pemirand         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #ifndef CLIENT_HPP
 # define CLIENT_HPP
 
+#include "Socket.hpp"
 # include <string>
 # include <cstddef>
 
@@ -23,14 +24,16 @@ class Client{
 		std::string	bf_out_;
 		bool		headers_done_;
 		size_t		out_bytes_sent_;
+		Socket*		socket_;
 	public:
 		Client();
-		Client(int fd);
+		Client(int fd, Socket* socket);
 		Client(const Client &other);
 		Client &operator=(const Client &other);
 		~Client();
 
 		bool getHeaders_done() const;
+		Socket* getSocket() const;
 		void setHeaders_done(bool value = true);
 		const std::string& getBf_in() const;
 		void appendBf_in(const char *data, size_t n);

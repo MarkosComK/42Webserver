@@ -6,7 +6,7 @@
 /*   By: pemirand <pemirand@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/03/03 14:10:11 by pemirand          #+#    #+#             */
-/*   Updated: 2026/03/04 14:39:57 by pemirand         ###   ########.fr       */
+/*   Updated: 2026/03/19 14:41:25 by pemirand         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,18 +16,21 @@ Client::Client(){
 	fd_ = -1;
 	headers_done_ = false;
 	out_bytes_sent_ = 0;
+	socket_ = nullptr;
 }
 
-Client::Client(int fd){
+Client::Client(int fd, Socket* socket){
 	fd_ = fd;
 	headers_done_ = false;
 	out_bytes_sent_ = 0;
+	socket_ = socket;
 }
 
 Client::Client(const Client &other){
 	fd_ = other.fd_;
 	headers_done_ = other.headers_done_;
 	out_bytes_sent_ = other.out_bytes_sent_;
+	socket_ = other.socket_;
 }
 
 Client &Client::operator=(const Client &other){
@@ -36,6 +39,7 @@ Client &Client::operator=(const Client &other){
 		fd_ = other.fd_;
 		headers_done_ = other.headers_done_;
 		out_bytes_sent_ = other.out_bytes_sent_;
+		socket_ = other.socket_;
 	}
 	return *this;
 }
@@ -76,4 +80,8 @@ void Client::setOut_bytes_sent(size_t n){
 
 void Client::addOut_bytes_sent(size_t n){
 	out_bytes_sent_ += n;
+}
+
+Socket* Client::getSocket() const{
+	return socket_;
 }

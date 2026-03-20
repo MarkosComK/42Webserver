@@ -6,7 +6,7 @@
 /*   By: pemirand <pemirand@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/03/19 12:00:56 by pemirand          #+#    #+#             */
-/*   Updated: 2026/03/19 12:38:52 by pemirand         ###   ########.fr       */
+/*   Updated: 2026/03/19 15:49:08 by pemirand         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -37,6 +37,15 @@ struct ListenPair {
 	int port;
 
 	ListenPair(const std::string &h, int p) : host(h), port(p) {}
+
+	bool operator<(const ListenPair &other) const
+    {
+        if (host < other.host)
+            return true;
+        if (host > other.host)
+            return false;
+        return port < other.port;
+    }
 };
 
 struct ServerConfig {
