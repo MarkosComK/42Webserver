@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Client.hpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: pemirand <pemirand@student.42.fr>          +#+  +:+       +#+        */
+/*   By: carlos-j <carlos-j@student.42porto.com>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/03/03 13:52:08 by pemirand          #+#    #+#             */
-/*   Updated: 2026/03/04 14:39:54 by pemirand         ###   ########.fr       */
+/*   Updated: 2026/03/21 21:44:25 by carlos-j         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,6 +16,8 @@
 # include <string>
 # include <cstddef>
 
+class Socket;
+
 class Client{
 	private:
 		int			fd_;
@@ -23,14 +25,16 @@ class Client{
 		std::string	bf_out_;
 		bool		headers_done_;
 		size_t		out_bytes_sent_;
+		Socket*		socket_;
 	public:
 		Client();
-		Client(int fd);
+		Client(int fd, Socket* socket);
 		Client(const Client &other);
 		Client &operator=(const Client &other);
 		~Client();
 
 		bool getHeaders_done() const;
+		Socket* getSocket() const;
 		void setHeaders_done(bool value = true);
 		const std::string& getBf_in() const;
 		void appendBf_in(const char *data, size_t n);

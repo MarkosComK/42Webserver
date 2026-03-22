@@ -6,13 +6,13 @@
 /*   By: carlos-j <carlos-j@student.42porto.com>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/02/12 20:21:48 by marsoare          #+#    #+#             */
-/*   Updated: 2026/03/18 17:23:26 by carlos-j         ###   ########.fr       */
+/*   Updated: 2026/03/21 21:59:46 by carlos-j         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
-#include "includes/Socket.hpp"
 #include "includes/webserv.hpp"
 #include "includes/ConfigParser.hpp"
+#include "includes/Server.hpp"
 #include <cstring>
 #include <cstdlib>
 
@@ -38,21 +38,14 @@ int main(int argc, char **argv) {
 		ConfigParser parser(configPath);
 		const std::vector<ServerConfig> &servers = parser.getServers();
 
-		//int port = servers[0].listens.empty() ? 8080 : servers[0].listens[0].port;
-
-		//Socket socket(port, servers[0]);
-		Socket socket(servers[0]);
-
-		// TODO: support multiple servers and virtual hosting based on Host header
-		// Socket socket(parser.getServers()); // something like this...
-
-		// TODO: make init, bind and listen run in a loop for multiple ports, creating one fd per host:port and pushing them to poll_fds
-		socket.init_socket();
-		socket.bind_socket();
-		socket.listen_socket();
-		socket.start_poll();
-		socket.run();
-		socket.close_socket();
+		Server server;
+		for (size_t server_index = 0; server_index < servers.size(); ++server_index) {
+			for (size_t listen_index = 0; listen_index < servers[server_index].listens.size(); ++listen_index) {
+				server.addListen(servers[server_index].listens[listen_index], &servers[server_index]);
+			}
+		}
+		server.run();
+		server.closeAll();
 
 	} catch (const std::exception &e) {
 		std::cerr << "Error: " << e.what() << std::endl;

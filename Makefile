@@ -6,7 +6,7 @@ rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(su
 # Automatically find ALL .cpp files in main directory and srcs/
 SRCS = main.cpp $(call rwildcard,srcs,*.cpp)
 
-HEADERS	= includes/Socket.hpp includes/Client.hpp includes/Request.hpp includes/Config.hpp includes/ConfigParser.hpp includes/Utils.hpp includes/webserv.hpp
+HEADERS	= includes/Socket.hpp includes/Client.hpp includes/Server.hpp includes/Request.hpp includes/Config.hpp includes/ConfigParser.hpp includes/Utils.hpp includes/webserv.hpp
 
 OBJS = $(SRCS:.cpp=.o)
 

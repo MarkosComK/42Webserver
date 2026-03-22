@@ -79,13 +79,6 @@ bool isMethodAllowedForLocation(const std::string &method, const std::string &re
 	const Location *loc = matchLocation(requestPath, config);
 	if (!loc || loc->allowedMethods.empty())
 		return true;
-	if (method == "HEAD") {
-		for (size_t i = 0; i < loc->allowedMethods.size(); ++i) {
-			if (loc->allowedMethods[i] == "HEAD" || loc->allowedMethods[i] == "GET")
-				return true;
-		}
-		return false;
-	}
 	for (size_t i = 0; i < loc->allowedMethods.size(); ++i) {
 		if (loc->allowedMethods[i] == method)
 			return true;

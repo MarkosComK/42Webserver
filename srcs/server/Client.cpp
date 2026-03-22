@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   Client.cpp                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: pemirand <pemirand@student.42.fr>          +#+  +:+       +#+        */
+/*   By: carlos-j <carlos-j@student.42porto.com>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/03/03 14:10:11 by pemirand          #+#    #+#             */
-/*   Updated: 2026/03/04 14:39:57 by pemirand         ###   ########.fr       */
+/*   Updated: 2026/03/21 21:44:25 by carlos-j         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,18 +16,21 @@ Client::Client(){
 	fd_ = -1;
 	headers_done_ = false;
 	out_bytes_sent_ = 0;
+	socket_ = NULL;
 }
 
-Client::Client(int fd){
+Client::Client(int fd, Socket* socket){
 	fd_ = fd;
 	headers_done_ = false;
 	out_bytes_sent_ = 0;
+	socket_ = socket;
 }
 
 Client::Client(const Client &other){
 	fd_ = other.fd_;
 	headers_done_ = other.headers_done_;
 	out_bytes_sent_ = other.out_bytes_sent_;
+	socket_ = other.socket_;
 }
 
 Client &Client::operator=(const Client &other){
@@ -36,6 +39,7 @@ Client &Client::operator=(const Client &other){
 		fd_ = other.fd_;
 		headers_done_ = other.headers_done_;
 		out_bytes_sent_ = other.out_bytes_sent_;
+		socket_ = other.socket_;
 	}
 	return *this;
 }
@@ -44,6 +48,10 @@ Client::~Client(){}
 
 bool Client::getHeaders_done() const{
 	return headers_done_;
+}
+
+Socket* Client::getSocket() const{
+	return socket_;
 }
 
 void Client::setHeaders_done(bool value){
