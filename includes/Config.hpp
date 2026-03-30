@@ -1,3 +1,15 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   Config.hpp                                         :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: carlos-j <carlos-j@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2026/03/30 17:03:30 by carlos-j          #+#    #+#             */
+/*   Updated: 2026/03/30 17:03:41 by carlos-j         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 #ifndef CONFIG_HPP
 #define CONFIG_HPP
 
@@ -15,10 +27,11 @@ struct Location {
 	std::string redirect;    // redirect target URL, empty if none
 	int redirectCode;        // e.g. 301, 302; 0 if not a redirect
 	bool autoindex;
+	size_t clientMaxBodySize;
 	std::map<std::string, std::string> cgi; // e.g. ".php" -> "/usr/bin/php-cgi"
 
 	// initialize members of the struct with default values
-	Location() : redirectCode(0), autoindex(false) {}
+	Location() : redirectCode(0), autoindex(false), clientMaxBodySize(1024 * 1024) {} // default max body size is 1MB
 };
 
 // could we make ListenPair a map instead of a struct??

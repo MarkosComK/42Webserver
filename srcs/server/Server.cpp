@@ -171,10 +171,12 @@ bool Server::clientRead_(size_t poll_index) {
 			if (!client.getHeaders_done()) {
 				if (client.getBf_in().find("\r\n\r\n") != std::string::npos)
 					client.setHeaders_done(true);
-				else if (client.getBf_in().size() > 8192) {
-					//fecha por simplicidade e envia 431/413
-					closeClient_(poll_index);
-					return true;
+				else if (client.getBf_in().size() > 8192) { // Headers too long
+					std::string response = buildErrorResponse(413, "Error 413\n");
+					client.appendBf_out(response);
+					client.setOut_bytes_sent(0);
+					poll_fds_[poll_index].events = POLLOUT;
+					break;
 				}
 			}
 
@@ -212,7 +214,12 @@ bool Server::clientRead_(size_t poll_index) {
 				if (contentLength < 0)
 					contentLength = 0;
 
-				if (contentLength > 0 && static_cast<size_t>(contentLength) > server_config->clientMaxBodySize) {
+				size_t maxBodySize = server_config->clientMaxBodySize;
+				const Location *loc = matchLocation(earlyPath, *server_config);
+				if (loc && loc->clientMaxBodySize > 0)
+					maxBodySize = loc->clientMaxBodySize;
+
+				if (contentLength > 0 && static_cast<size_t>(contentLength) > maxBodySize) {
 					std::string response = buildErrorResponse(413, "Error 413\n");
 					client.appendBf_out(response);
 					client.setOut_bytes_sent(0);

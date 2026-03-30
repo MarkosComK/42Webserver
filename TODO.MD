@@ -56,6 +56,10 @@ While the `ConfigParser` reads `cgi` directives, there is no logic to execute th
 *   **Issue:** The server currently closes the connection after every response (`Connection: close`). While simple, the subject may require supporting persistent connections.
 *   **Fix:** Investigate and implement support for `Connection: keep-alive`. This would involve not closing the client socket after a response is sent, but rather resetting its state and waiting for a new request on the same `fd`. This also requires correctly handling timeouts for idle keep-alive connections.
 
+### 5. Implement client_max_body_size inside server location in the config file ✅ DONE --> test it!
+
+### 6. Add a "visitors" board that lets users submit their name via a POST and show a wall of visitors, with the results of a POST saved in a CVS (is that even possible?)
+
 ---
 
 ## ✨ Bonus / Optional Features

@@ -55,6 +55,8 @@ void testConfigParsing(const std::string &configPath) {
 					std::cout << "      upload_store: " << loc.uploadDir << std::endl;
 				if (loc.redirectCode != 0)
 					std::cout << "      return:       " << loc.redirectCode << " " << loc.redirect << std::endl;
+				if (loc.clientMaxBodySize > 0)
+					std::cout << "      client_max_body: " << loc.clientMaxBodySize << " bytes" << std::endl;
 				if (!loc.cgi.empty()) {
 					std::cout << "      cgi:" << std::endl;
 					for (std::map<std::string, std::string>::const_iterator it = loc.cgi.begin(); it != loc.cgi.end(); ++it)
@@ -224,6 +226,12 @@ ServerConfig ConfigParser::parseServerBlock(std::vector<std::string> &tokens, si
 		}
 	}
 
+	// Inherit client_max_body_size from the server if not explicitly set in the location
+	for (size_t idx = 0; idx < server.locations.size(); ++idx) {
+		if (server.locations[idx].clientMaxBodySize == 0)
+			server.locations[idx].clientMaxBodySize = server.clientMaxBodySize;
+	}
+
 	if (server.listens.empty())
 		throw ParseException("Server block is missing 'listen' directive");
 	return server;
@@ -307,6 +315,15 @@ Location ConfigParser::parseLocationBlock(std::vector<std::string> &tokens, size
 			loc.cgi[ext] = interpreter;
 			if (i >= tokens.size() || tokens[i] != ";")
 				throw ParseException("Expected ';' after 'cgi' value");
+			i++;
+
+		} else if (directive == "client_max_body_size") {
+			i++;
+			if (i >= tokens.size() || tokens[i] == ";")
+				throw ParseException("'client_max_body_size' requires a value");
+			loc.clientMaxBodySize = parseSize(tokens[i++]);
+			if (i >= tokens.size() || tokens[i] != ";")
+				throw ParseException("Expected ';' after 'client_max_body_size' value");
 			i++;
 
 		} else {
