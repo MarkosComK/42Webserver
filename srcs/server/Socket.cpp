@@ -6,7 +6,7 @@
 /*   By: carlos-j <carlos-j@student.42porto.com>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/03/02 12:33:10 by pemirand          #+#    #+#             */
-/*   Updated: 2026/03/21 22:25:09 by carlos-j         ###   ########.fr       */
+/*   Updated: 2026/03/30 08:40:31 by carlos-j         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -18,7 +18,7 @@
 #include <cstring>
 #include <stdexcept>
 
-
+// added listen_fd
 Socket::Socket() : port_(80), host_("0.0.0.0"), listen_fd_(-1) {
 }
 

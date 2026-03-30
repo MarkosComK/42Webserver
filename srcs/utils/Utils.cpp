@@ -117,3 +117,23 @@ long getContentLengthHeader(const std::string &rawRequest) {
 	}
 	return 0;
 }
+
+// Decodes percent-encoded URI bytes.
+// decodePlusAsSpace should be true only for x-www-form-urlencoded query semantics.
+std::string uriDecode(const std::string &encoded, bool decodePlusAsSpace) {
+	std::string decoded;
+	decoded.reserve(encoded.length());
+	for (size_t i = 0; i < encoded.length(); ++i) {
+		if (encoded[i] == '%' && i + 2 < encoded.length() && std::isxdigit(encoded[i+1]) && std::isxdigit(encoded[i+2])) {
+			std::string hex = encoded.substr(i + 1, 2);
+			char c = static_cast<char>(std::strtol(hex.c_str(), NULL, 16));
+			decoded += c;
+			i += 2;
+		} else if (decodePlusAsSpace && encoded[i] == '+') {
+			decoded += ' ';
+		} else {
+			decoded += encoded[i];
+		}
+	}
+	return decoded;
+}

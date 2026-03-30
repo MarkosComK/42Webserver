@@ -48,7 +48,6 @@ static bool parseRequestLineMethodPath(const std::string &rawRequest, std::strin
 	return true;
 }
 
-
 // ...
 std::string Server::listenKey_(const ListenPair &listen) const {
 	return listen.host + ":" + itoa_int(listen.port);
@@ -62,6 +61,21 @@ void Server::addPollFd_(int fd, short events) {
 	pollFd.revents = 0; // revents is set by the kernel to indicate which events occurred, we initialize it to 0 before polling
 	poll_fds_.push_back(pollFd);
 }
+
+/*
+void Server::addSocket(const ListenPair &listen, const Socket &socket){
+	sockets_[listen] = socket;
+	sockets_[listen].init_socket();
+	sockets_[listen].bind_socket();
+	sockets_[listen].listen_socket();
+	pollfd p;
+	p.fd = sockets_[listen].getListen_fd();
+	p.events = POLLIN;
+	p.revents = 0;
+	poll_fds_.push_back(p);
+	listen_fd_to_socket_[sockets_[listen].getListen_fd()] = &sockets_[listen];
+}
+*/
 
 // accepts new clients on the given listen socket fd, and adds them to the poll list and clients map
 // removed the previous addSocket() entirely
@@ -123,6 +137,10 @@ void Server::acceptNewClients_(int listen_fd) {
 	}
 }
 
+
+// NOW WE CHANGE THE READ, FROM "id" TO "poll_index"
+
+
 void Server::closeClient_(size_t poll_index) {
 	int fd = poll_fds_[poll_index].fd;
 	close(fd);
@@ -133,6 +151,9 @@ void Server::closeClient_(size_t poll_index) {
 bool Server::clientRead_(size_t poll_index) {
 	int client_fd = poll_fds_[poll_index].fd;
 	Client &client = clients_[client_fd];
+
+	// NEW
+	// Looks up the server configuration associated with this client's socket
 	Socket *sock = client.getSocket();
 	const ServerConfig *cfgPtr = NULL;
 	if (sock) {
@@ -151,6 +172,7 @@ bool Server::clientRead_(size_t poll_index) {
 				if (client.getBf_in().find("\r\n\r\n") != std::string::npos)
 					client.setHeaders_done(true);
 				else if (client.getBf_in().size() > 8192) {
+					//fecha por simplicidade e envia 431/413
 					closeClient_(poll_index);
 					return true;
 				}
@@ -164,20 +186,22 @@ bool Server::clientRead_(size_t poll_index) {
 
 				// If we can't resolve a config for this client, treat it as a server misconfiguration.
 				if (!server_config) {
-					std::string response = build_error_response(500, "Error 500\n");
+					std::string response = buildErrorResponse(500, "Error 500\n");
 					client.appendBf_out(response);
 					client.setOut_bytes_sent(0);
 					poll_fds_[poll_index].events = POLLOUT;
 					break;
 				}
 
+				// NEW
+				// parse the method and path before the full request, for initial checks
 				std::string earlyMethod;
 				std::string earlyPath;
 				parseRequestLineMethodPath(buffer, earlyMethod, earlyPath);
 
 				if (!earlyPath.empty() && earlyPath[0] == '/' && !earlyMethod.empty()
 					&& !isMethodAllowedForLocation(earlyMethod, earlyPath, *server_config)) {
-					std::string response = build_error_response(405, "Error 405\n");
+					std::string response = buildErrorResponse(405, "Error 405\n");
 					client.appendBf_out(response);
 					client.setOut_bytes_sent(0);
 					poll_fds_[poll_index].events = POLLOUT;
@@ -189,21 +213,21 @@ bool Server::clientRead_(size_t poll_index) {
 					contentLength = 0;
 
 				if (contentLength > 0 && static_cast<size_t>(contentLength) > server_config->clientMaxBodySize) {
-					std::string response = build_error_response(413, "Error 413\n");
+					std::string response = buildErrorResponse(413, "Error 413\n");
 					client.appendBf_out(response);
 					client.setOut_bytes_sent(0);
 					poll_fds_[poll_index].events = POLLOUT;
 					break;
 				}
 
-				size_t totalNeeded = headersEnd + 4;
+				size_t totalNeeded = headersEnd + 4; // +4 for the \r\n\r\n
 				if (contentLength > 0)
 					totalNeeded += static_cast<size_t>(contentLength);
 				if (buffer.size() < totalNeeded)
 					continue;
 
 				std::string rawRequest = buffer.substr(0, totalNeeded);
-				std::string response = build_response_from_request(rawRequest, *server_config);
+				std::string response = buildResponseFromRequest(rawRequest, *server_config);
 
 				client.appendBf_out(response);
 				client.setOut_bytes_sent(0);
@@ -212,10 +236,10 @@ bool Server::clientRead_(size_t poll_index) {
 			}
 		} else if (n == 0) {
 			closeClient_(poll_index);
-			return true;
+			return true; // cliente fechou
 		} else {
 			if (errno == EAGAIN || errno == EWOULDBLOCK)
-				break;
+				break; // sem mais dados agora
 			closeClient_(poll_index);
 			return true;
 		}

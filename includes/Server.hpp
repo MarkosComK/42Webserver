@@ -25,11 +25,11 @@
 
 class Server {
 	private:
-		std::vector<pollfd>                 poll_fds_;
-		std::map<int, Client>               clients_;
-		std::map<std::string, Socket>       sockets_;
-		std::map<int, Socket*>              listen_fd_to_socket_;
-		std::map<Socket*, const ServerConfig*> socket_to_config_;
+		std::vector<pollfd>                 poll_fds_; // pollfd struct contains: int fd; short events; short revents;
+		std::map<int, Client>               clients_; // int = client socket fd; Client = socket and buffers
+		std::map<std::string, Socket>       sockets_; // string = "host:port"; Socket = listening socket for that host:port
+		std::map<int, Socket*>              listen_fd_to_socket_; // int = listen socket fd; Socket* = pointer to the Socket object in sockets_ (for easy lookup when accepting new clients)
+		std::map<Socket*, const ServerConfig*> socket_to_config_; // Socket* = pointer to the Socket object in sockets_; ServerConfig* = pointer to the ServerConfig that should be used for clients accepted on that socket
 
 		std::string listenKey_(const ListenPair &listen) const;
 		void addPollFd_(int fd, short events);

@@ -18,9 +18,9 @@
 #define STATUS413 "413 Payload Too Large"
 #define STATUS500 "500 Internal Server Error"
 #define STATUS501 "501 Not Implemented"
-#define STATUS505 "505 HTTP Version Not Supported"
 #define STATUS502 "502 Bad Gateway"
 #define STATUS503 "503 Service Unavailable"
+#define STATUS505 "505 HTTP Version Not Supported"
 
 #define VERSION "HTTP/1.1 "
 

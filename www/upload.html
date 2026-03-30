@@ -4,18 +4,102 @@
   <meta charset="UTF-8">
   <title>Upload — 42 Webserv</title>
   <style>
-    body { font-family: sans-serif; max-width: 600px; margin: 60px auto; text-align: center; }
-    a { color: #0070f3; }
-    .card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-top: 20px; text-align: left; }
-    .row { display: flex; gap: 8px; align-items: center; }
-    input[type="text"] { flex: 1; padding: 8px; }
-    button { padding: 8px 12px; cursor: pointer; }
-    .status { margin-top: 10px; font-family: monospace; white-space: pre-wrap; }
+    body {
+      font-family: sans-serif;
+      max-width: 600px;
+      margin: 80px auto;
+      padding: 0 16px;
+      color: #1f2937;
+      background: #ffffff;
+      text-align: left;
+    }
+
+    h1 {
+      font-size: 2.2em;
+      margin-bottom: 10px;
+      line-height: 1.2;
+    }
+
+    p {
+      color: #6b7280;
+    }
+
+    a {
+      color: #0070f3;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .card {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 16px;
+      background: #fafafa;
+    }
+
+    .card h3 {
+      margin-top: 0;
+      margin-bottom: 12px;
+      color: #111827;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    input[type="text"],
+    input[type="file"] {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #111827;
+    }
+
+    button {
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #0070f3;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+
+    button:hover {
+      background: #eef6ff;
+    }
+
+    .status {
+      margin-top: 10px;
+      font-family: monospace;
+      font-size: 0.92em;
+      white-space: pre-wrap;
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 8px;
+      min-height: 20px;
+      color: #374151;
+    }
+
+    .back {
+      margin-top: 20px;
+    }
   </style>
 </head>
 <body>
   <h1>Upload</h1>
-  <p>This page allows you to upload and delete files from the server.</p>
+  <p>This page allows you to upload and delete files from the server's upload directory.</p>
 
   <div class="card">
     <h3>Upload file</h3>
@@ -35,7 +119,7 @@
     <div id="deleteStatus" class="status"></div>
   </div>
 
-  <p><a href="/">Back to Home</a></p>
+  <p class="back"><a href="/">Back to Home</a></p>
 
   <script>
     function setStatus(id, message) {

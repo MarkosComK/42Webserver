@@ -215,7 +215,7 @@ ServerConfig ConfigParser::parseServerBlock(std::vector<std::string> &tokens, si
 
 	if (i >= tokens.size())
 		throw ParseException("Unexpected end of file in server block");
-	i++; // consume '}'
+	i++; // ignore '}'
 
 	if (!server.root.empty()) {
 		for (size_t idx = 0; idx < server.locations.size(); ++idx) {
@@ -316,7 +316,7 @@ Location ConfigParser::parseLocationBlock(std::vector<std::string> &tokens, size
 
 	if (i >= tokens.size())
 		throw ParseException("Unexpected end of file in location block");
-	i++; // consume '}'
+	i++; // ignore '}'
 	return loc;
 }
 

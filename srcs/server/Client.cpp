@@ -6,7 +6,7 @@
 /*   By: carlos-j <carlos-j@student.42porto.com>    +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/03/03 14:10:11 by pemirand          #+#    #+#             */
-/*   Updated: 2026/03/21 21:44:25 by carlos-j         ###   ########.fr       */
+/*   Updated: 2026/03/30 08:09:15 by carlos-j         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,6 +16,7 @@ Client::Client(){
 	fd_ = -1;
 	headers_done_ = false;
 	out_bytes_sent_ = 0;
+	//socket_ = nullptr; // changed to NULL for C++98 compatibility
 	socket_ = NULL;
 }
 

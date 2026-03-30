@@ -6,8 +6,10 @@
 #include <sstream>
 #include <sys/stat.h>
 #include <cerrno>
+#include <dirent.h>
+#include <algorithm>
 
-static std::string build_response(const std::string &status,
+static std::string buildResponse(const std::string &status,
 	const std::string &contentType,
 	const std::string &body,
 	const std::vector<std::string> &extraHeaders = std::vector<std::string>(),
@@ -51,6 +53,87 @@ static std::string mime_type(const std::string &path)
 	return "application/octet-stream";
 }
 
+static bool replaceAll(std::string &text, const std::string &from, const std::string &to)
+{
+	if (from.empty())
+		return false;
+	bool replaced = false;
+	size_t pos = 0;
+	while ((pos = text.find(from, pos)) != std::string::npos)
+	{
+		text.replace(pos, from.length(), to);
+		pos += to.length();
+		replaced = true;
+	}
+	return replaced;
+}
+
+static std::string buildAutoindexBody(const std::string &dirPath, const std::string &requestPath)
+{
+	std::vector<std::string> names;
+	DIR *dir = opendir(dirPath.c_str());
+	if (!dir)
+		return "";
+
+	for (struct dirent *entry = readdir(dir); entry != NULL; entry = readdir(dir))
+	{
+		std::string name = entry->d_name;
+		if (name == ".")
+			continue;
+		names.push_back(name);
+	}
+	closedir(dir);
+
+	std::sort(names.begin(), names.end());
+
+	std::string baseUri = requestPath;
+	if (baseUri.empty())
+		baseUri = "/";
+	if (baseUri[baseUri.size() - 1] != '/')
+		baseUri += "/";
+
+	std::ostringstream listItems;
+
+	for (size_t i = 0; i < names.size(); ++i)
+	{
+		std::string entryName = names[i];
+		std::string fullPath = dirPath;
+		if (!fullPath.empty() && fullPath[fullPath.size() - 1] != '/')
+			fullPath += "/";
+		fullPath += entryName;
+
+		bool isDir = false;
+		struct stat entrySt;
+		if (stat(fullPath.c_str(), &entrySt) == 0)
+			isDir = S_ISDIR(entrySt.st_mode);
+
+		std::string display = entryName + (isDir ? "/" : "");
+		std::string href = baseUri + entryName + (isDir ? "/" : "");
+		listItems << "<li><a href=\"" << href << "\">" << display << "</a></li>\n";
+	}
+
+	std::ifstream templateFile("www/autoindex.html", std::ios::binary);
+	if (templateFile.is_open())
+	{
+		std::ostringstream tmpl;
+		tmpl << templateFile.rdbuf();
+		std::string html = tmpl.str();
+		replaceAll(html, "{{TITLE}}", "Index of " + baseUri);
+		replaceAll(html, "{{PATH}}", baseUri);
+		replaceAll(html, "{{LIST_ITEMS}}", listItems.str());
+		return html;
+	}
+
+	std::ostringstream ss;
+	ss << "<!DOCTYPE html>\n";
+	ss << "<html><head><meta charset=\"UTF-8\"><title>Index of " << baseUri << "</title></head><body>\n";
+	ss << "<h1>Index of " << baseUri << "</h1>\n<ul>\n";
+	ss << listItems.str();
+
+	ss << "</ul>\n</body></html>\n";
+	return ss.str();
+}
+
 static bool hasUnsafePathSegments(const std::string &relativePath)
 {
 	std::vector<std::string> parts = ftSplit(relativePath, "/");
@@ -64,30 +147,51 @@ static bool hasUnsafePathSegments(const std::string &relativePath)
 	return false;
 }
 
-std::string serve_file(const std::string &method, const std::string &requestPath, const std::string &requestBody, const ServerConfig &config)
+static std::string build404PageResponse(const ServerConfig &config, const std::string &root, bool headOnly)
 {
-	const bool headOnly = (method == "HEAD");
-	const Location *loc = matchLocation(requestPath, config);
-
-	if (requestPath.size() > 1)
-	{
-		std::string withSlash = requestPath + "/";
-		const Location *slashLoc = matchLocation(withSlash, config);
-		if (slashLoc && !slashLoc->path.empty() && slashLoc->path[slashLoc->path.size() - 1] == '/' && (!loc || slashLoc->path.size() > loc->path.size()))
-		{
-			if (!isMethodAllowedForLocation(method, withSlash, config))
-				return build_error_response(405, "Error 405\n");
-			std::vector<std::string> headers;
-			headers.push_back("Location: " + withSlash);
-			return build_response(STATUS301, "text/plain", "", headers, !headOnly);
+	std::string body404;
+	std::map<int, std::string>::const_iterator ep = config.errorPages.find(404);
+	if (ep != config.errorPages.end()) {
+		std::ifstream ef((root + ep->second).c_str(), std::ios::binary);
+		if (ef.is_open()) {
+			std::ostringstream ss;
+			ss << ef.rdbuf();
+			body404 = ss.str();
 		}
 	}
+	if (body404.empty()) {
+		std::ifstream page404("www/404.html", std::ios::binary);
+		if (page404.is_open()) {
+			std::ostringstream ss;
+			ss << page404.rdbuf();
+			body404 = ss.str();
+		} else {
+			body404 = "<h1>404 Not Found</h1>\n";
+		}
+	}
+	return buildResponse(STATUS404, "text/html", body404, std::vector<std::string>(), !headOnly);
+}
 
-	if (!isMethodAllowedForLocation(method, requestPath, config))
-		return build_error_response(405, "Error 405\n");
 
-	if (loc && loc->redirectCode != 0)
-	{
+// if a location starting with "/" exists, redirect to that path
+static std::string redirectIfLocationExists(const std::string &method, const std::string &requestPath, const ServerConfig &config, const Location *loc, bool headOnly) {
+	if (requestPath.size() > 1) {
+		std::string withSlash = requestPath + "/";
+		const Location *slashLoc = matchLocation(withSlash, config);
+		if (slashLoc && !slashLoc->path.empty() && slashLoc->path[slashLoc->path.size() - 1] == '/' && (!loc || slashLoc->path.size() > loc->path.size())) {
+			if (!isMethodAllowedForLocation(method, withSlash, config))
+				return buildErrorResponse(405, "Error 405\n");
+			std::vector<std::string> headers;
+			headers.push_back("Location: " + withSlash);
+			return buildResponse(STATUS301, "text/plain", "", headers, !headOnly);
+		}
+	}
+	return "";
+}
+
+// if the location has a redirect configured, return the redirect response
+static std::string checkLocationRedirect(const Location *loc, bool headOnly) {
+	if (loc && loc->redirectCode != 0) {
 		std::string body = "<html><body>Redirecting to <a href=\"" + loc->redirect + "\">" + loc->redirect + "</a></body></html>\n";
 		std::string status = itoa_int(loc->redirectCode) + " Redirect";
 		if (loc->redirectCode == 301)
@@ -96,18 +200,33 @@ std::string serve_file(const std::string &method, const std::string &requestPath
 			status = STATUS302;
 		std::vector<std::string> headers;
 		headers.push_back("Location: " + loc->redirect);
-		return build_response(status, "text/html", body, headers, !headOnly);
+		return buildResponse(status, "text/html", body, headers, !headOnly);
 	}
+	return "";
+}
 
-	std::string root = (loc && !loc->root.empty()) ? loc->root : (!config.root.empty() ? config.root : "www");
-	std::string index = (loc && !loc->index.empty()) ? loc->index : "index.html";
+// check if the location has a redirect configured, return the redirect response
+static void checkRootIndex(const Location *loc, const ServerConfig &config, std::string &root, std::string &index) {
+	if (loc && !loc->root.empty()) {
+		root = loc->root;
+	} else if (!config.root.empty()) {
+		root = config.root;
+	} else {
+		root = "www"; // default root
+	}
+	if (loc && !loc->index.empty()) {
+		index = loc->index;
+	} else {
+		index = "";
+	}
+}
 
+// path relative to the location root
+static std::string checkRelativePath(const Location *loc, const std::string &requestPath) {
 	std::string relativePath = requestPath;
-	if (loc && loc->path != "/")
-	{
+	if (loc && loc->path != "/") {
 		const std::string &locPath = loc->path;
-		if (requestPath.size() >= locPath.size() && requestPath.substr(0, locPath.size()) == locPath)
-		{
+		if (requestPath.size() >= locPath.size() && requestPath.substr(0, locPath.size()) == locPath) {
 			relativePath = requestPath.substr(locPath.size());
 			if (relativePath.empty())
 				relativePath = "/";
@@ -115,119 +234,145 @@ std::string serve_file(const std::string &method, const std::string &requestPath
 				relativePath = "/" + relativePath;
 		}
 	}
+	return relativePath;
+}
 
-	std::string filePath = root + (relativePath == "/" ? "/" + index : relativePath);
-
-	if (method == "POST")
-	{
-		if (relativePath == "/")
-			return build_error_response(400, "Error 400\n");
-		if (hasUnsafePathSegments(relativePath))
-			return build_error_response(400, "Error 400\n");
-
-		std::string uploadBase = root;
-		if (loc && !loc->uploadDir.empty())
-			uploadBase = loc->uploadDir;
-
-		std::string targetPath = uploadBase + relativePath;
-		struct stat targetSt;
-		if (stat(targetPath.c_str(), &targetSt) == 0 && S_ISDIR(targetSt.st_mode))
-			return build_error_response(403, "Error 403\n");
-
-		std::ofstream out(targetPath.c_str(), std::ios::binary | std::ios::trunc);
-		if (!out.is_open())
-		{
-			if (errno == EACCES || errno == EPERM)
-				return build_error_response(403, "Error 403\n");
-			return build_error_response(500, "Error 500\n");
-		}
-		if (!requestBody.empty())
-			out.write(requestBody.data(), static_cast<std::streamsize>(requestBody.size()));
-		if (!out.good())
-		{
-			out.close();
-			return build_error_response(500, "Error 500\n");
-		}
+// POST method: create or overwrite a file with the request body as content
+static std::string postMethod(const std::string &relativePath, const std::string &requestBody, const Location *loc, const std::string &root) {
+	if (relativePath == "/")
+		return buildErrorResponse(400, "Error 400\n");
+	if (hasUnsafePathSegments(relativePath))
+		return buildErrorResponse(400, "Error 400\n");
+	std::string uploadBase = root;
+	if (loc && !loc->uploadDir.empty())
+		uploadBase = loc->uploadDir;
+	std::string targetPath = uploadBase + relativePath;
+	struct stat targetSt;
+	if (stat(targetPath.c_str(), &targetSt) == 0 && S_ISDIR(targetSt.st_mode))
+		return buildErrorResponse(403, "Error 403\n");
+	std::ofstream out(targetPath.c_str(), std::ios::binary | std::ios::trunc);
+	if (!out.is_open()) {
+		if (errno == EACCES || errno == EPERM)
+			return buildErrorResponse(403, "Error 403\n");
+		return buildErrorResponse(500, "Error 500\n");
+	}
+	if (!requestBody.empty())
+		out.write(requestBody.data(), static_cast<std::streamsize>(requestBody.size()));
+	if (!out.good()) {
 		out.close();
-
-		return build_response(STATUS201, "text/plain", "Created\n");
+		return buildErrorResponse(500, "Error 500\n");
 	}
+	out.close();
+	return buildResponse(STATUS201, "text/plain", "Created\n");
+}
 
-	if (method == "DELETE")
-	{
-		if (relativePath == "/")
-			return build_error_response(403, "Error 403\n");
-		if (hasUnsafePathSegments(relativePath))
-			return build_error_response(400, "Error 400\n");
-
-		std::string deleteBase = root;
-		if (loc && !loc->uploadDir.empty())
-			deleteBase = loc->uploadDir;
-
-		std::string targetPath = deleteBase + relativePath;
-		struct stat targetSt;
-		if (stat(targetPath.c_str(), &targetSt) != 0)
-			return build_error_response(404, "Error 404\n");
-
-		if (S_ISDIR(targetSt.st_mode))
-			return build_error_response(403, "Error 403\n");
-
-		if (std::remove(targetPath.c_str()) != 0)
-		{
-			if (errno == ENOENT)
-				return build_error_response(404, "Error 404\n");
-			if (errno == EACCES || errno == EPERM)
-				return build_error_response(403, "Error 403\n");
-			return build_error_response(500, "Error 500\n");
-		}
-
-		return build_response(STATUS204, "", "");
+// DELETE method: remove a file
+static std::string deleteMethod(const std::string &relativePath, const Location *loc, const std::string &root) {
+	if (relativePath == "/")
+		return buildErrorResponse(403, "Error 403\n");
+	if (hasUnsafePathSegments(relativePath))
+		return buildErrorResponse(400, "Error 400\n");
+	std::string deleteBase = root;
+	if (loc && !loc->uploadDir.empty())
+		deleteBase = loc->uploadDir;
+	std::string targetPath = deleteBase + relativePath;
+	struct stat targetSt;
+	if (stat(targetPath.c_str(), &targetSt) != 0)
+		return buildErrorResponse(404, "Error 404\n");
+	if (S_ISDIR(targetSt.st_mode))
+		return buildErrorResponse(403, "Error 403\n");
+	if (std::remove(targetPath.c_str()) != 0) {
+		if (errno == ENOENT)
+			return buildErrorResponse(404, "Error 404\n");
+		if (errno == EACCES || errno == EPERM)
+			return buildErrorResponse(403, "Error 403\n");
+		return buildErrorResponse(500, "Error 500\n");
 	}
+	return buildResponse(STATUS204, "", "");
+}
 
+// for GET and HEAD methods, send the file contents or directory listing
+static std::string sendFileOrDirectoryContents(const std::string &filePath, const std::string &index, const std::string &root, const ServerConfig &config, bool headOnly, const Location *loc, const std::string &requestPath) {
 	struct stat st;
-	if (stat(filePath.c_str(), &st) == 0 && S_ISDIR(st.st_mode))
-	{
-		if (filePath.empty() || filePath[filePath.size() - 1] != '/')
-			filePath += "/";
-		filePath += index;
+	std::string finalPath = filePath;
+	if (stat(finalPath.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) {
+		if (!index.empty()) {
+			std::string indexPath = finalPath;
+			if (indexPath.empty() || indexPath[indexPath.size() - 1] != '/')
+				indexPath += "/";
+			indexPath += index;
+
+			std::ifstream indexFile(indexPath.c_str(), std::ios::binary);
+			if (indexFile.is_open()) {
+				std::ostringstream ss;
+				ss << indexFile.rdbuf();
+				return buildResponse(STATUS200, mime_type(indexPath), ss.str(), std::vector<std::string>(), !headOnly);
+			}
+		}
+
+		if (loc && loc->autoindex) {
+			std::string body = buildAutoindexBody(finalPath, requestPath);
+			if (body.empty())
+				return buildErrorResponse(500, "Error 500\n");
+			return buildResponse(STATUS200, "text/html", body, std::vector<std::string>(), !headOnly);
+		}
+
+		return build404PageResponse(config, root, headOnly);
 	}
 
-	std::ifstream file(filePath.c_str(), std::ios::binary);
-	if (!file.is_open())
-	{
-		std::string body404;
-		std::map<int, std::string>::const_iterator ep = config.errorPages.find(404);
-		if (ep != config.errorPages.end())
-		{
-			std::ifstream ef((root + ep->second).c_str(), std::ios::binary);
-			if (ef.is_open())
-			{
-				std::ostringstream ss;
-				ss << ef.rdbuf();
-				body404 = ss.str();
-			}
-		}
-		if (body404.empty())
-		{
-			std::ifstream page404("www/404.html", std::ios::binary);
-			if (page404.is_open())
-			{
-				std::ostringstream ss;
-				ss << page404.rdbuf();
-				body404 = ss.str();
-			}
-			else
-				body404 = "<h1>404 Not Found</h1>\n";
-		}
-		return build_response(STATUS404, "text/html", body404, std::vector<std::string>(), !headOnly);
+	std::ifstream file(finalPath.c_str(), std::ios::binary);
+	if (!file.is_open()) {
+		return build404PageResponse(config, root, headOnly);
 	}
 	std::ostringstream ss;
 	ss << file.rdbuf();
 	std::string body = ss.str();
-	return build_response(STATUS200, mime_type(filePath), body, std::vector<std::string>(), !headOnly);
+	return buildResponse(STATUS200, mime_type(finalPath), body, std::vector<std::string>(), !headOnly);
 }
 
-std::string build_error_response(int errorCode, const std::string &body)
+std::string buildResourceResponse(const std::string &method, const std::string &requestPath, const std::string &requestBody, const ServerConfig &config)
+{
+	const bool headOnly = (method == "HEAD");
+	const Location *loc = matchLocation(requestPath, config);
+
+	std::string result = redirectIfLocationExists(method, requestPath, config, loc, headOnly);
+
+	if (!result.empty())
+		return result;
+	// from this point, we know the location exists
+
+	if (!isMethodAllowedForLocation(method, requestPath, config))
+		return buildErrorResponse(405, "Error 405\n");
+	// from this point, we know the method is allowed for the location
+
+	result = checkLocationRedirect(loc, headOnly);
+	if (!result.empty())
+		return result;
+	// from this point, we know there is no redirect configured for the location
+
+	std::string root, index;
+	checkRootIndex(loc, config, root, index);
+	// from this point, we have the root and index for the location (either from the location or from the server config or default)
+
+	std::string relativePath = checkRelativePath(loc, requestPath);
+
+	std::string filePath;
+	if (relativePath == "/") {
+		filePath = root + "/" + index;
+	} else {
+		filePath = root + relativePath;
+	}
+
+	if (method == "POST")
+		return postMethod(relativePath, requestBody, loc, root);
+
+	if (method == "DELETE")
+		return deleteMethod(relativePath, loc, root);
+
+	return sendFileOrDirectoryContents(filePath, index, root, config, headOnly, loc, requestPath);
+}
+
+std::string buildErrorResponse(int errorCode, const std::string &body)
 {
 	struct ErrorStatus
 	{
@@ -235,12 +380,24 @@ std::string build_error_response(int errorCode, const std::string &body)
 		const char *status;
 	};
 	static const ErrorStatus statuses[] = {
+		{200, STATUS200},
+		{201, STATUS201},
+		{202, STATUS202},
+		{204, STATUS204},
+		{301, STATUS301},
+		{302, STATUS302},
+		{304, STATUS304},
 		{400, STATUS400},
+		{401, STATUS401},
 		{403, STATUS403},
 		{404, STATUS404},
 		{405, STATUS405},
 		{411, STATUS411},
 		{413, STATUS413},
+		{500, STATUS500},
+		{501, STATUS501},
+		{502, STATUS502},
+		{503, STATUS503},
 		{505, STATUS505}};
 	const char *statusStr = STATUS500;
 	for (size_t i = 0; i < sizeof(statuses) / sizeof(statuses[0]); ++i)
@@ -251,25 +408,25 @@ std::string build_error_response(int errorCode, const std::string &body)
 			break;
 		}
 	}
-	return build_response(statusStr, "text/plain", body);
+	return buildResponse(statusStr, "text/plain", body);
 }
 
-std::string build_response_from_request(const std::string &rawRequest, const ServerConfig &config)
+std::string buildResponseFromRequest(const std::string &rawRequest, const ServerConfig &config)
 {
 	Request request(rawRequest);
 	if (!request.isValid())
 	{
 		int errorCode = request.getErrorCode();
 		std::string errorBody = "Error " + itoa_int(errorCode) + "\n";
-		return build_error_response(errorCode, errorBody);
+		return buildErrorResponse(errorCode, errorBody);
 	}
 
 	if (request.getMethod() == "POST" && request.getPath() == "/post_body")
 	{
 		if (request.getBody().size() > 100)
-			return build_error_response(413, "Error 413\n");
-		return build_response(STATUS200, "text/plain", "POST OK\n");
+			return buildErrorResponse(413, "Error 413\n");
+		return buildResponse(STATUS200, "text/plain", "POST OK\n");
 	}
 
-	return serve_file(request.getMethod(), request.getPath(), request.getBody(), config);
+	return buildResourceResponse(request.getMethod(), request.getPath(), request.getBody(), config);
 }

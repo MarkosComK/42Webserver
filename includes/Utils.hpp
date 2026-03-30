@@ -13,6 +13,7 @@ std::string itoa_int(int n);
 const Location *matchLocation(const std::string &path, const ServerConfig &server);
 bool isMethodAllowedForLocation(const std::string &method, const std::string &requestPath, const ServerConfig &config);
 long getContentLengthHeader(const std::string &rawRequest);
+std::string uriDecode(const std::string &encoded, bool decodePlusAsSpace = false);
 
 
 

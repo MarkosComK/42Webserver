@@ -1,5 +1,5 @@
 #include "Request.hpp"
-#include <Utils.hpp>
+#include "Utils.hpp"
 #include <cstdlib>
 #include <iostream>
 
@@ -110,14 +110,16 @@ bool Request::parsePath()
 	}
 
 	_query.clear();
-	size_t queryPos = _path.find('?');
+	size_t queryPos = _path.find('?'); // find query string
 	if (queryPos != std::string::npos)
 	{
-		_query = _path.substr(queryPos + 1);
+		_query = uriDecode(_path.substr(queryPos + 1), true); // decode query using form-style '+' as space
 		_path = _path.substr(0, queryPos);
 		if (_path.empty())
 			_path = "/";
 	}
+
+	_path = uriDecode(_path); // decode path
 	return true;
 }
 
@@ -242,10 +244,6 @@ bool Request::parseBody(const std::string &raw)
 	_body = body.substr(0, static_cast<size_t>(contentLength));
 	return true;
 }
-
-// TODO:
-// * URI decoding for path and query string (e.g. %20 -> space, %2F -> /)
-// ...
 
 std::string Request::getMethod() const
 {
